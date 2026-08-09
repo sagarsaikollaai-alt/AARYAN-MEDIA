@@ -188,9 +188,26 @@ const SECURE_VIDEO_MAP = {
   "prem_l21": "9b969ec6-fb9f-4434-a90f-59fe1097aac2"
 };
 
+// Normalizes lesson IDs like "prem_14" -> "prem_l14" so both ID formats
+// (with or without the "l") resolve to the correct video. This protects
+// against Supabase `lessons.id` values that were saved without the "l"
+// while SECURE_VIDEO_MAP keys use the "l" format.
+function normalizeLessonId(lessonId) {
+  if (SECURE_VIDEO_MAP[lessonId]) return lessonId; // already correct format
+  const match = lessonId.match(/^([a-zA-Z]+)_(\d+)$/); // e.g. prem_14
+  if (match) {
+    const candidate = `${match[1]}_l${match[2]}`; // -> prem_l14
+    if (SECURE_VIDEO_MAP[candidate]) {
+      return candidate;
+  }
+}
+  return lessonId; // no match found; will correctly 404 downstream
+}
+
 app.post('/api/lessons/:lessonId/playback-token', async (req, res) => {
   try {
-    const { lessonId } = req.params;
+    const rawLessonId = req.params.lessonId;
+    const lessonId = normalizeLessonId(rawLessonId);
     const { courseSlug } = req.body;
 
     if (!courseSlug) return res.status(400).json({ error: 'Course slug is required' });
@@ -202,7 +219,7 @@ app.post('/api/lessons/:lessonId/playback-token', async (req, res) => {
     }
     const token = authHeader.replace('Bearer ', '');
     const { data: authData, error: authError } = await supabase.auth.getUser(token);
-    
+
     if (authError || !authData?.user) {
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
@@ -210,11 +227,11 @@ app.post('/api/lessons/:lessonId/playback-token', async (req, res) => {
 
     // 2. Find Lesson Video ID securely from the backend map
     const videoId = SECURE_VIDEO_MAP[lessonId];
-    
+
     if (!videoId) {
       // If it's an AI or Free lesson, we explicitly return 409 Conflict (Video Not Assigned)
       // This tells the frontend to show "Coming Soon" instead of a "Playback Error"
-      if (lessonId.startsWith('ai_') || lessonId.startsWith('free_')) {
+      if (rawLessonId.startsWith('ai_') || rawLessonId.startsWith('free_')) {
         return res.status(409).json({ error: 'Coming Soon: Video not assigned yet.', code: 'VIDEO_NOT_ASSIGNED' });
       }
       // If it's a Premiere Pro lesson but not in the map, it's a genuine 404
@@ -229,7 +246,7 @@ app.post('/api/lessons/:lessonId/playback-token', async (req, res) => {
       .eq('payment_status', 'success');
 
     const purchasedCourseIds = (purchases || []).map(p => p.course_id);
-    
+
     // Map slugs to course IDs for authorization
     let requiredCourseId = null;
     if (courseSlug === 'premiere-pro-complete') requiredCourseId = '1';
