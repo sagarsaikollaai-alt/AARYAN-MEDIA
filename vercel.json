@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://YOUR_BACKEND_URL.onrender.com/api/$1"
+      "destination": "https://aaryan-course-backend.onrender.com/api/$1"
     }
   ]
 }
