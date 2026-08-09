@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Explore Courses — Aaryan Media</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      html { background-color: #0A0A0A; }
+      html.light { background-color: #F4F4F5; }
+    </style>
+    <script>
+      (function() {
+        try {
+          var theme = localStorage.getItem('theme') || 'dark';
+          var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
+          } else {
+            document.documentElement.classList.add('light');
+            document.documentElement.style.colorScheme = 'light';
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="font-sans antialiased selection:bg-[#D7FF2F] selection:text-black">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

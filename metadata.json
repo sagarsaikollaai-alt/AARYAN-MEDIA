@@ -1,0 +1,6 @@
+{
+  "name": "Aaryan Media - Explore Courses",
+  "description": "Premium, minimalistic Explore Courses page for Aaryan Media with course search, category filters, sorting, and course view details.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
