@@ -261,7 +261,7 @@ export const INITIAL_COURSES: Course[] = [
     duration: "4h 15m",
     bunnyStreamId: "active",
     status: "published",
-    community: { whatsapp: "https://chat.whatsapp.com/EtUyGEBa8a9IZzLdTlSnvC", instagram: "https://www.instagram.com/channel/AbbqWBgmMdVSOi-g/" },
+    community: { whatsapp: "https://chat.whatsapp.com/premiere-pro-group", instagram: "https://instagram.com/premiere-pro-channel" },
     longDescription: "This course is designed to help beginners become confident video editors by covering everything from project setup to exporting high-quality videos.",
     whatYoullLearn: [
       "This course is designed to help beginners become confident video editors by covering everything from project setup to exporting high-quality videos."
@@ -294,14 +294,14 @@ export const INITIAL_COURSES: Course[] = [
     duration: "5h 10m",
     bunnyStreamId: "active",
     status: "coming_soon",
-    community: { whatsapp: "https://chat.whatsapp.com/EtUyGEBa8a9IZzLdTlSnvC", instagram: "https://www.instagram.com/channel/AbbqWBgmMdVSOi-g/" },
+    community: { whatsapp: "https://chat.whatsapp.com/ai-video-group", instagram: "https://instagram.com/ai-video-channel" },
     longDescription: "This course covers the complete AI content creation workflow using industry-leading platforms like ChatGPT, Google Gemini, Google Veo, and Google Omni.",
     whatYoullLearn: [
       "This course covers the complete AI content creation workflow using industry-leading platforms like ChatGPT, Google Gemini, Google Veo, and Google Omni."
     ],
     specs: { language: "Telugu", lastUpdated: "Recently", certificate: "Yes", access: "Lifetime" },
     modules: aiModules,
-    downloadableResources: [], // No resources for AI course
+    downloadableResources: [],
     faqs: [
       { question: "Is this course beginner friendly?", answer: "Yes. No AI experience is required. Everything is explained from the fundamentals." },
       { question: "Which AI tools are covered?", answer: "ChatGPT, Google Gemini, Google Veo, Google Omni, AI image generation, AI video generation, AI avatars, AI voice generation, prompt engineering, and more." },
@@ -325,7 +325,7 @@ export const INITIAL_COURSES: Course[] = [
     duration: "12h 40m",
     bunnyStreamId: "active",
     status: "published",
-    community: { whatsapp: "https://chat.whatsapp.com/EtUyGEBa8a9IZzLdTlSnvC", instagram: "https://www.instagram.com/channel/AbbqWBgmMdVSOi-g/" },
+    community: { whatsapp: "https://chat.whatsapp.com/creator-bundle-group", instagram: "https://instagram.com/creator-bundle-channel" },
     longDescription: "You'll learn proven strategies for finding high-quality clients, reaching out through different platforms, writing effective client messages, conducting professional conversations, negotiating confidently, and closing premium projects.",
     whatYoullLearn: [
       "You'll learn proven strategies for finding high-quality clients, reaching out through different platforms, writing effective client messages, conducting professional conversations, negotiating confidently, and closing premium projects."
