@@ -119,12 +119,19 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
           body: JSON.stringify({ courseSlug: course.slug })
         });
 
-        const data = await res.json();
-        
+        // SAFE JSON PARSING: Prevent UI crash if backend returns 404 HTML/Text
         if (!res.ok) {
-          throw new Error(data.error || 'Failed to fetch video token');
+          let errorMessage = 'Failed to fetch video token';
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch {
+            errorMessage = `Server returned ${res.status}: ${res.statusText}`;
+          }
+          throw new Error(errorMessage);
         }
-        
+
+        const data = await res.json();
         setPlaybackData(data);
       } catch (err: any) {
         console.error('Video token fetch failed:', err);
