@@ -198,9 +198,9 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 items-start mb-12">
 
+          {/* 1. Video - mobile order 1, desktop left column */}
           <div className="lg:col-span-2 space-y-8">
             <div className="space-y-4">
-              {/* 1. Video Player */}
               <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/[0.08] shadow-2xl">
 
                 {uiState === 'locked' && (
@@ -312,7 +312,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
 
               {/* 2. Currently Selected Bar (Moved directly under video) */}
               {isPurchased && activeLesson && (
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111111] border border-white/[0.08] rounded-xl p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111111] border border-white/[0.08] rounded-xl p-3 lg:col-span-2">
                   <div>
                     <span className="text-[#D7FF2F] text-xs font-bold uppercase tracking-wider">Currently Selected</span>
                     <h3 className="text-sm font-semibold text-white mt-0.5">{activeLesson.title}</h3>
@@ -337,26 +337,46 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                 </div>
               )}
 
-              {/* 3. Join Community Button */}
+              {/* 3. Join Community Button - placed here in DOM for mobile ordering; moves to sidebar on lg */}
               {isPurchased && course.community && (
-                <button onClick={() => setShowCommunityModal(true)} className="flex items-center gap-2 bg-[#111111] border border-white/[0.08] hover:border-[#D7FF2F] text-white hover:text-[#D7FF2F] px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
-                  <Users className="w-4 h-4 text-[#D7FF2F]" /> Join Community
-                </button>
+                <div className="lg:col-start-3 lg:col-span-1">
+                  <button onClick={() => setShowCommunityModal(true)} className="flex items-center gap-2 w-full bg-[#111111] border border-white/[0.08] hover:border-[#D7FF2F] text-white hover:text-[#D7FF2F] px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                    <Users className="w-4 h-4 text-[#D7FF2F]" /> Join Community
+                  </button>
+                </div>
               )}
+
+              {isPurchased && (
+                <div className="lg:col-start-3 lg:col-span-1">
+                  <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6">
+                    <div className="text-xs text-zinc-500 uppercase tracking-wider mb-3">Instructor</div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-[#D7FF2F]/20 text-[#D7FF2F] border border-[#D7FF2F]/40 flex items-center justify-center font-bold text-lg">
+                        {course.instructor[0]}
+                      </div>
+                      <div>
+                        <span className="text-sm font-semibold text-white block">{course.instructor}</span>
+                        <span className="text-xs text-zinc-400">Lead Creator at Aaryan Media</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
 
-            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
+            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8 lg:col-span-2">
               <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Sparkles className="w-5 h-5 text-[#D7FF2F]" />What You'll Learn</h2>
               <div className="space-y-4">
                 {course.whatYoullLearn.map((item, idx) => <p key={idx} className="text-sm text-zinc-300 leading-relaxed">{item}</p>)}
               </div>
             </div>
 
-            {/* Downloadable Resources Section - Conditionally Rendered */}
+            {/* Downloadable Resources - DOM placement for mobile; moves to sidebar on lg */}
             {course.downloadableResources && course.downloadableResources.length > 0 && (
-              <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
+              <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8 lg:col-start-3 lg:col-span-1">
                 <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2"><Download className="w-5 h-5 text-[#D7FF2F]" />Downloadable Resources</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
                   {course.downloadableResources.map((res: any) => {
                     const Icon = IconMap[res.iconName] || Package;
                     return (
@@ -384,7 +404,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
               </div>
             )}
 
-            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
+            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8 lg:col-span-2">
               <h2 className="text-xl font-bold text-white mb-6">Course Specifications</h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="bg-black/40 border border-white/[0.06] p-4 rounded-xl">
@@ -406,7 +426,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
               </div>
             </div>
 
-            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
+            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8 lg:col-span-2">
               <h2 className="text-xl font-bold text-white mb-6">Frequently Asked Questions</h2>
               <div className="space-y-3">
                 {course.faqs.map((faq, index) => {
@@ -423,91 +443,77 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                 })}
               </div>
             </div>
-          </div>
+          {/* Sidebar and action items - keep as individual blocks placed into the right column on lg */}
 
-          <div className="lg:col-span-1">
-            <div className="lg:sticky lg:top-24 space-y-6 max-h-[calc(100vh-6rem)] overflow-y-auto pb-4 no-scrollbar">
-
-              {!isPurchased && !isCourseComingSoon && (
-                <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 space-y-5 shadow-2xl">
-                  <div>
-                    <span className="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Enrollment Status</span>
-                    <h3 className="text-2xl font-extrabold text-white">Enroll Today</h3>
-                  </div>
-                  <button onClick={() => onBuyCourse(course)} className="w-full bg-[#D7FF2F] hover:bg-[#C7F51A] text-black font-bold py-3.5 rounded-full flex items-center justify-center gap-2 shadow-lg transition-all text-sm">
-                    <span>Buy Now • ₹{course.price.toLocaleString('en-IN')}</span>
-                  </button>
-                  <div className="border-t border-white/[0.08] pt-5 space-y-3 text-xs text-zinc-300">
-                    <div className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#D7FF2F] shrink-0" /> Full Lifetime Access</div>
-                    <div className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#D7FF2F] shrink-0" /> Verified Completion Certificate</div>
-                    <div className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#D7FF2F] shrink-0" /> All Downloadable Resources & Assets</div>
-                    <div className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#D7FF2F] shrink-0" /> HD Video Streaming on Mobile & Desktop</div>
-                  </div>
+          {/* Enrollment / Buy box - place in sidebar on lg */}
+          {!isPurchased && !isCourseComingSoon && (
+            <div className="lg:col-start-3 lg:col-span-1">
+              <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 space-y-5 shadow-2xl">
+                <div>
+                  <span className="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Enrollment Status</span>
+                  <h3 className="text-2xl font-extrabold text-white">Enroll Today</h3>
                 </div>
-              )}
-
-              <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-bold text-white">Course Curriculum</h2>
-                </div>
-                <div className="space-y-6">
-                  {Object.entries(groupedSections).map(([sectionTitle, mods]) => (
-                    <div key={sectionTitle}>
-                      <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 px-1">{sectionTitle}</h3>
-                      <div className="space-y-3">
-                        {mods.map((mod) => {
-                          const isOpen = openModuleId === mod.id;
-                          return (
-                            <div key={mod.id} className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/40">
-                              <button onClick={() => toggleModule(mod.id)} className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors">
-                                <span className="text-sm font-semibold text-white">{mod.title}</span>
-                                <div className="flex items-center gap-3 text-xs text-zinc-400">
-                                  <span>{mod.lessons.length} lessons</span>
-                                  {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                </div>
-                              </button>
-                              {isOpen && (
-                                <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
-                                  {mod.lessons.map((lesson: any) => {
-                                    const canPlay = isPurchased;
-                                    const isActive = lesson.id === activeLessonId;
-                                    return (
-                                      <div key={lesson.id} onClick={() => canPlay && handleSelectLesson(lesson.id)} className={`flex items-center justify-between p-3 px-4 text-sm transition-colors ${canPlay ? "cursor-pointer hover:bg-white/[0.02]" : "cursor-not-allowed"} ${isActive ? "bg-[#D7FF2F]/[0.06]" : ""}`}>
-                                        <div className="flex items-center gap-3">
-                                          {canPlay ? <PlayCircle className="w-4 h-4 text-[#D7FF2F] shrink-0" /> : <Lock className="w-4 h-4 text-zinc-500 shrink-0" />}
-                                          <div>
-                                            <p className={`font-medium ${canPlay ? "text-zinc-200" : "text-zinc-500"} ${isActive ? "text-[#D7FF2F]" : ""}`}>{lesson.title}</p>
-                                          </div>
-                                        </div>
-                                        <span className="text-xs text-zinc-500 font-mono">{lesson.duration}</span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                <button onClick={() => onBuyCourse(course)} className="w-full bg-[#D7FF2F] hover:bg-[#C7F51A] text-black font-bold py-3.5 rounded-full flex items-center justify-center gap-2 shadow-lg transition-all text-sm">
+                  <span>Buy Now • ₹{course.price.toLocaleString('en-IN')}</span>
+                </button>
+                <div className="border-t border-white/[0.08] pt-5 space-y-3 text-xs text-zinc-300">
+                  <div className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#D7FF2F] shrink-0" /> Full Lifetime Access</div>
+                  <div className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#D7FF2F] shrink-0" /> Verified Completion Certificate</div>
+                  <div className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#D7FF2F] shrink-0" /> All Downloadable Resources & Assets</div>
+                  <div className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#D7FF2F] shrink-0" /> HD Video Streaming on Mobile & Desktop</div>
                 </div>
               </div>
+            </div>
+          )}
 
-              {isPurchased && (
-                <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 space-y-5 shadow-2xl">
-                  <div className="text-xs text-zinc-500 uppercase tracking-wider mb-3">Instructor</div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-[#D7FF2F]/20 text-[#D7FF2F] border border-[#D7FF2F]/40 flex items-center justify-center font-bold text-lg">
-                      {course.instructor[0]}
-                    </div>
-                    <div>
-                      <span className="text-sm font-semibold text-white block">{course.instructor}</span>
-                      <span className="text-xs text-zinc-400">Lead Creator at Aaryan Media</span>
+          {/* Course Curriculum / Modules - place into sidebar on lg, in DOM order for mobile */}
+          <div className="lg:col-start-3 lg:col-span-1">
+            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-white">Course Curriculum</h2>
+              </div>
+              <div className="space-y-6">
+                {Object.entries(groupedSections).map(([sectionTitle, mods]) => (
+                  <div key={sectionTitle}>
+                    <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 px-1">{sectionTitle}</h3>
+                    <div className="space-y-3">
+                      {mods.map((mod) => {
+                        const isOpen = openModuleId === mod.id;
+                        return (
+                          <div key={mod.id} className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/40">
+                            <button onClick={() => toggleModule(mod.id)} className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors">
+                              <span className="text-sm font-semibold text-white">{mod.title}</span>
+                              <div className="flex items-center gap-3 text-xs text-zinc-400">
+                                <span>{mod.lessons.length} lessons</span>
+                                {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                              </div>
+                            </button>
+                            {isOpen && (
+                              <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
+                                {mod.lessons.map((lesson: any) => {
+                                  const canPlay = isPurchased;
+                                  const isActive = lesson.id === activeLessonId;
+                                  return (
+                                    <div key={lesson.id} onClick={() => canPlay && handleSelectLesson(lesson.id)} className={`flex items-center justify-between p-3 px-4 text-sm transition-colors ${canPlay ? "cursor-pointer hover:bg-white/[0.02]" : "cursor-not-allowed"} ${isActive ? "bg-[#D7FF2F]/[0.06]" : ""}`}>
+                                      <div className="flex items-center gap-3">
+                                        {canPlay ? <PlayCircle className="w-4 h-4 text-[#D7FF2F] shrink-0" /> : <Lock className="w-4 h-4 text-zinc-500 shrink-0" />}
+                                        <div>
+                                          <p className={`font-medium ${canPlay ? "text-zinc-200" : "text-zinc-500"} ${isActive ? "text-[#D7FF2F]" : ""}`}>{lesson.title}</p>
+                                        </div>
+                                      </div>
+                                      <span className="text-xs text-zinc-500 font-mono">{lesson.duration}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           </div>
         </div>
