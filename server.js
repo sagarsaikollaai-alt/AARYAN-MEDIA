@@ -365,7 +365,6 @@ app.get('/api/courses', async (req, res) => {
       `)
       .in('status', ['live', 'coming_soon'])
       .order('popularity_score', { ascending: false });
-
     if (error) { console.error('[GET /api/courses]', error); return res.status(500).json({ error: 'Failed to fetch courses' }); }
 
     const courseIds = (courses || []).map((c) => c.id);
@@ -389,7 +388,10 @@ app.get('/api/courses', async (req, res) => {
     });
     return res.json(formatted);
   } catch (err) {
-    console.error('[GET /api/courses]', err);
+    console.error('[GET /api/courses] error:', err);
+    if (process.env.NODE_ENV !== 'production') {
+      return res.status(500).json({ error: 'Failed to fetch courses', details: err && err.message ? err.message : String(err) });
+    }
     return res.status(500).json({ error: 'Failed to fetch courses' });
   }
 });
