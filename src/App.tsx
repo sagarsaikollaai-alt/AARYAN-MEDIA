@@ -2,15 +2,15 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import type { User } from '@supabase/supabase-js';
-import { Course, UserProfile } from './types';
-import { INITIAL_COURSES } from './data/courses';
+import type { Course } from './data/courses';
+import { UserProfile } from './types';
 
 // Components
 import { Header } from './components/Header';
 import { LoginModal } from './components/LoginModal';
 import { CourseCard } from './components/CourseCard';
 import { PaymentModal } from './components/PaymentModal';
-import { Footer } from './components/Footer'; // <-- Footer imported here
+import { Footer } from './components/Footer';
 import { Search } from 'lucide-react';
 
 // Pages
@@ -35,32 +35,63 @@ function AppContent() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  
+  const [coursesError, setCoursesError] = useState<string | null>(null);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [paymentCourse, setPaymentCourse] = useState<Course | null>(null);
   const [toast, setToast] = useState('');
 
+  // Fetches the real, Supabase-backed course + lesson catalog from the backend.
+  const fetchCourses = async (purchasedIds: string[] = []) => {
+    try {
+      const res = await fetch('/api/courses');
+      if (!res.ok) throw new Error(`Failed to load courses (${res.status})`);
+      const data: Course[] = await res.json();
+      const withPurchaseFlags = data.map((c) => ({
+        ...c,
+        purchased: purchasedIds.includes(c.id),
+      }));
+      setCourses(withPurchaseFlags);
+      setCoursesError(null);
+    } catch (err: any) {
+      console.error('Failed to fetch courses:', err);
+      setCoursesError(err.message || 'Failed to load courses.');
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
-      setCourses(INITIAL_COURSES);
-
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) await handleUserData(session.user);
+
+      if (session) {
+        const purchasedIds = await handleUserData(session.user);
+        await fetchCourses(purchasedIds);
+      } else {
+        await fetchCourses([]);
+      }
 
       setLoading(false);
     };
     init();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) await handleUserData(session.user);
-      else { setUser(null); setSupabaseUser(null); }
+      if (session?.user) {
+        const purchasedIds = await handleUserData(session.user);
+        await fetchCourses(purchasedIds);
+      } else {
+        setUser(null);
+        setSupabaseUser(null);
+        await fetchCourses([]);
+      }
     });
 
     return () => authListener.subscription.unsubscribe();
   }, []);
 
-  const handleUserData = async (authUser: User) => {
+  // Returns the list of purchased course ids so callers can immediately
+  // refresh the course list with correct `purchased` flags.
+  const handleUserData = async (authUser: User): Promise<string[]> => {
     setSupabaseUser(authUser);
     const { data: profile } = await supabase.from('profiles').select('name, avatar').eq('id', authUser.id).single();
     const { data: purchases } = await supabase.from('purchases').select('course_id').eq('user_id', authUser.id).eq('payment_status', 'success');
@@ -73,12 +104,9 @@ function AppContent() {
       avatar: profile?.avatar || authUser.user_metadata?.name?.[0]?.toUpperCase() || 'A',
       purchasedCourseIds: purchasedIds
     });
-  };
 
-  useEffect(() => {
-    if (!user) return;
-    setCourses(prev => prev.map(c => ({ ...c, purchased: user.purchasedCourseIds.includes(c.id) })));
-  }, [user]);
+    return purchasedIds;
+  };
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
@@ -100,11 +128,34 @@ function AppContent() {
     navigate('/');
   };
 
-  const filteredCourses = courses.filter(c => c.title.toLowerCase().includes(searchQuery.toLowerCase()) || c.description.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredCourses = courses.filter(c => 
+    c.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    c.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  
   const getActiveTab = () => location.pathname.startsWith('/my-courses') ? 'my-courses' : 'explore';
   const hideNav = location.pathname.includes('/learn/');
 
-  if (loading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#D7FF2F]/30 border-t-[#D7FF2F] rounded-full animate-spin"></div></div>;
+  if (loading) return (
+    <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-[#D7FF2F]/30 border-t-[#D7FF2F] rounded-full animate-spin"></div>
+    </div>
+  );
+
+  if (coursesError) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-white gap-4 p-6 text-center">
+        <p className="text-lg font-bold">Unable to load courses</p>
+        <p className="text-zinc-400 text-sm max-w-md">{coursesError}</p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="bg-[#D7FF2F] text-black font-bold px-6 py-2.5 rounded-full text-sm"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#050505] flex flex-col">
@@ -131,36 +182,54 @@ function AppContent() {
               </div>
               <div className="relative w-full md:w-64">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <input type="text" placeholder="Search courses..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-[#111111] border border-white/[0.08] focus:border-[#D7FF2F] rounded-full pl-11 pr-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors" />
+                <input 
+                  type="text" 
+                  placeholder="Search courses..." 
+                  value={searchQuery} 
+                  onChange={(e) => setSearchQuery(e.target.value)} 
+                  className="w-full bg-[#111111] border border-white/[0.08] focus:border-[#D7FF2F] rounded-full pl-11 pr-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors" 
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredCourses.map(course => (
-                <CourseCard 
-                  key={course.id} 
-                  course={course} 
-                  onCardClick={(c) => navigate(`/courses/${c.slug}`)} 
+                <CourseCard
+                  key={course.id}
+                  course={course}
+                  onCardClick={(c) => navigate(`/courses/${c.slug}`)}
                   onCtaClick={(e, c) => {
-                    e.stopPropagation(); 
+                    e.stopPropagation();
                     if (c.purchased) {
-                      navigate(`/learn/${c.slug}`); 
+                      navigate(`/learn/${c.slug}`);
                     } else {
-                      handleBuyCourse(c); 
+                      handleBuyCourse(c);
                     }
-                  }} 
+                  }}
                 />
               ))}
             </div>
           </main>
         } />
 
-        <Route path="/courses/:slug" element={<CoursePageWrapper courses={courses} user={user} navigate={navigate} handleBuyCourse={handleBuyCourse} />} />
-        <Route path="/learn/:slug" element={<CoursePageWrapper courses={courses} user={user} navigate={navigate} handleBuyCourse={handleBuyCourse} />} />
+        <Route 
+          path="/courses/:slug" 
+          element={<CoursePageWrapper courses={courses} user={user} navigate={navigate} handleBuyCourse={handleBuyCourse} />} 
+        />
+        <Route 
+          path="/learn/:slug" 
+          element={<CoursePageWrapper courses={courses} user={user} navigate={navigate} handleBuyCourse={handleBuyCourse} />} 
+        />
 
         <Route path="/my-courses" element={
           user ? (
-            <MyCoursesPage courses={courses} user={user} onNavigateToCourse={(slug) => navigate(`/learn/${slug}`)} onBack={() => navigate('/')} onExplore={() => navigate('/')} />
+            <MyCoursesPage 
+              courses={courses} 
+              user={user} 
+              onNavigateToCourse={(slug) => navigate(`/learn/${slug}`)} 
+              onBack={() => navigate('/')} 
+              onExplore={() => navigate('/')} 
+            />
           ) : <Navigate to="/" />
         } />
 
@@ -169,11 +238,20 @@ function AppContent() {
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
 
-      {/* Footer added here, outside the Routes so it renders globally */}
       <Footer />
 
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccessLogin={(name) => { showToast(`Welcome, ${name}!`); setIsLoginOpen(false); }} />
-      <PaymentModal isOpen={!!paymentCourse} course={paymentCourse} user={user} onClose={() => setPaymentCourse(null)} onPaymentSuccess={handlePaymentSuccess} />
+      <LoginModal 
+        isOpen={isLoginOpen} 
+        onClose={() => setIsLoginOpen(false)} 
+        onSuccessLogin={(name) => { showToast(`Welcome, ${name}!`); setIsLoginOpen(false); }} 
+      />
+      <PaymentModal 
+        isOpen={!!paymentCourse} 
+        course={paymentCourse} 
+        user={user} 
+        onClose={() => setPaymentCourse(null)} 
+        onPaymentSuccess={handlePaymentSuccess} 
+      />
       {toast && <div className="fixed bottom-6 right-6 z-[100] bg-[#D7FF2F] text-black font-bold py-3 px-5 rounded-xl shadow-lg">{toast}</div>}
     </div>
   );
@@ -182,6 +260,7 @@ function AppContent() {
 function CoursePageWrapper({ courses, user, navigate, handleBuyCourse }: any) {
   const { slug } = useParams<{ slug: string }>();
   const course = courses.find((c: Course) => c.slug === slug);
+  
   if (!course) return <div className="min-h-screen flex items-center justify-center text-white">Course not found.</div>;
 
   return (
