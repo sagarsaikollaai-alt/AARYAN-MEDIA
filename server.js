@@ -150,9 +150,14 @@ function formatCoursePublic(row, purchasedIds = new Set()) {
       access: c.lifetime_access ? 'Lifetime Access' : 'Limited Access',
     },
     faqs: (c.faqs || []).map((f) => ({ question: f.question, answer: f.answer })),
-    community: c.community
-      ? { whatsapp: c.community.whatsapp || '', instagram: c.community.instagram || '' }
-      : undefined,
+    community: (() => {
+      const community = Array.isArray(c.community) ? c.community[0] : c.community;
+      if (!community) return undefined;
+      return {
+        whatsapp: community.whatsapp || '',
+        instagram: community.instagram || '',
+      };
+    })(),
     status: c.status,
   };
 }
