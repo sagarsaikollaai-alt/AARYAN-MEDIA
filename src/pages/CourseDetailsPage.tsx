@@ -37,7 +37,8 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
 
   const isCourseComingSoon = course.status === 'coming_soon';
 
-  const [openModuleIds, setOpenModuleIds] = useState<string[]>([String(initialModules[0]?.id)]);
+  // Accordion state for modules — only ONE module can be open at a time
+  const [openModuleId, setOpenModuleId] = useState<string | null>(initialModules[0]?.id ?? null);
   const [openFaqIndices, setOpenFaqIndices] = useState<number[]>([0]);
   const [showCommunityModal, setShowCommunityModal] = useState(false);
 
@@ -63,8 +64,8 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
           setActiveLessonId(lesson.id);
           setResumeSeconds(last.last_position_seconds || 0);
           const parentModule = initialModules.find((m) => m.lessons.some((l) => l.id === lesson.id));
-          if (parentModule && !openModuleIds.includes(parentModule.id)) {
-            setOpenModuleIds((prev) => [...prev, parentModule.id]);
+          if (parentModule) {
+            setOpenModuleId(parentModule.id);
           }
         }
       }
@@ -82,7 +83,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
     }
   }, [isPurchased, course.id, course.community]);
 
-  const toggleModule = (id: string) => setOpenModuleIds((prev) => prev.includes(id) ? prev.filter((mId) => mId !== id) : [...prev, id]);
+  const toggleModule = (id: string) => setOpenModuleId((currentId) => (currentId === id ? null : id));
   const toggleFaq = (index: number) => setOpenFaqIndices((prev) => prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]);
 
   const handleSelectLesson = async (lessonId: string) => {
@@ -455,7 +456,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                       <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 px-1">{sectionTitle}</h3>
                       <div className="space-y-3">
                         {mods.map((mod) => {
-                          const isOpen = openModuleIds.includes(mod.id);
+                          const isOpen = openModuleId === mod.id;
                           return (
                             <div key={mod.id} className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/40">
                               <button onClick={() => toggleModule(mod.id)} className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors">
