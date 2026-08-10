@@ -124,6 +124,8 @@ function formatCoursePublic(row, purchasedIds = new Set()) {
     modules: (c.modules || []).map((mod) => ({
       id: mod.id,
       title: mod.title,
+      section: mod.section || null,
+      sectionTitle: mod.sectionTitle || null,
       lessons: (mod.lessons || []).map((les) => ({
         id: les.id,
         title: les.title,
@@ -160,6 +162,114 @@ function formatCoursePublic(row, purchasedIds = new Set()) {
     })(),
     status: c.status,
   };
+}
+
+// ---------------------------------------------------------------------------
+// COMPLETE CREATOR BUNDLE (course-3)
+// ---------------------------------------------------------------------------
+//
+// The bundle curriculum is composed at the API layer from existing courses:
+//   Section 1 — Premiere Pro           (course-1, 6 modules / 21 lessons)
+//   Section 2 — AI Video Generation    (course-2, 6 modules / 31 lessons)
+//   Section 3 — Freelancing Mastery    (course-3's own modules, 5 / 24 lessons)
+//
+// No lessons are duplicated in the database — the bundle simply re-uses the
+// existing lesson ids of course-1 and course-2. Sequential unlocking:
+//   Bundle purchase -> Premiere unlocked -> 21/21 Premiere completed
+//   -> AI unlocked -> 31/31 AI completed -> Freelancing unlocked.
+
+const BUNDLE_COURSE_ID = 'course-3';
+
+const BUNDLE_SECTIONS = [
+  { courseId: 'course-1', section: 'premiere', sectionTitle: 'SECTION 1 — PREMIERE PRO' },
+  { courseId: 'course-2', section: 'ai', sectionTitle: 'SECTION 2 — AI VIDEO GENERATION' },
+  { courseId: 'course-3', section: 'freelancing', sectionTitle: 'SECTION 3 — FREELANCING MASTERY' },
+];
+
+const BUNDLE_SECTION_BY_COURSE = {
+  'course-1': 'premiere',
+  'course-2': 'ai',
+  'course-3': 'freelancing',
+};
+
+async function composeBundleModules(courseId, ownModules = []) {
+  if (courseId !== BUNDLE_COURSE_ID) return ownModules;
+
+  const sourceCourseIds = [BUNDLE_SECTIONS[0].courseId, BUNDLE_SECTIONS[1].courseId];
+
+  const { data: sectionModules, error: modErr } = await supabase
+    .from('modules')
+    .select('id, course_id, title, sort_order')
+    .in('course_id', sourceCourseIds)
+    .order('sort_order', { ascending: true });
+  if (modErr) {
+    console.error('[composeBundleModules] modules query:', modErr);
+    return ownModules;
+  }
+
+  const { data: sectionLessons, error: lesErr } = await supabase
+    .from('lessons')
+    .select('id, module_id, title, duration, duration_seconds, video_id, is_free_preview, sort_order')
+    .in('course_id', sourceCourseIds)
+    .order('sort_order', { ascending: true });
+  if (lesErr) {
+    console.error('[composeBundleModules] lessons query:', lesErr);
+    return ownModules;
+  }
+
+  const lessonsByModule = {};
+  (sectionLessons || []).forEach((l) => {
+    (lessonsByModule[l.module_id] = lessonsByModule[l.module_id] || []).push(l);
+  });
+
+  const composed = [];
+  for (const section of BUNDLE_SECTIONS) {
+    const mods =
+      section.courseId === BUNDLE_COURSE_ID
+        ? [...(ownModules || [])].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+        : (sectionModules || []).filter((m) => m.course_id === section.courseId);
+
+    for (const mod of mods) {
+      const lessons = section.courseId === BUNDLE_COURSE_ID
+        ? (mod.lessons || [])
+        : (lessonsByModule[mod.id] || []);
+      composed.push({
+        id: mod.id,
+        title: mod.title,
+        sort_order: composed.length,
+        section: section.section,
+        sectionTitle: section.sectionTitle,
+        lessons,
+      });
+    }
+  }
+  return composed;
+}
+
+let lessonIdsCache = {};
+let lessonIdsCacheAt = 0;
+
+async function getLessonIdsForCourse(courseId) {
+  const now = Date.now();
+  if (!lessonIdsCache[courseId] || now - lessonIdsCacheAt > 600000) {
+    if (now - lessonIdsCacheAt > 600000) lessonIdsCache = {};
+    const { data } = await supabase.from('lessons').select('id').eq('course_id', courseId);
+    lessonIdsCache[courseId] = (data || []).map((l) => l.id);
+    lessonIdsCacheAt = now;
+  }
+  return lessonIdsCache[courseId];
+}
+
+async function countCompletedLessons(userId, courseId, lessonIds) {
+  if (!lessonIds || lessonIds.length === 0) return 0;
+  const { count } = await supabase
+    .from('lesson_progress')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('course_id', courseId)
+    .in('lesson_id', lessonIds)
+    .eq('completed', true);
+  return count || 0;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -227,7 +337,19 @@ app.post('/api/lessons/:lessonId/playback-token', async (req, res) => {
     }
 
     if (courseRow.slug !== courseSlug) {
-      return res.status(409).json({ error: 'Course slug does not match this lesson. Please refresh the page.' });
+      // The Complete Creator Bundle is composed of lessons that live on other
+      // courses (course-1 / course-2), so requesting a bundle-section lesson
+      // from the bundle page must be allowed even though the slugs differ.
+      const { data: requestedCourse } = await supabase
+        .from('courses')
+        .select('id, slug')
+        .eq('slug', courseSlug)
+        .single();
+      const requestedIsBundle = requestedCourse && requestedCourse.id === BUNDLE_COURSE_ID;
+      const lessonIsInBundle = Boolean(BUNDLE_SECTION_BY_COURSE[lesson.course_id]);
+      if (!requestedIsBundle || !lessonIsInBundle) {
+        return res.status(409).json({ error: 'Course slug does not match this lesson. Please refresh the page.' });
+      }
     }
 
     // Free-preview lessons don't require a purchase
@@ -240,15 +362,42 @@ app.post('/api/lessons/:lessonId/playback-token', async (req, res) => {
 
       const purchasedCourseIds = (purchases || []).map((p) => p.course_id);
 
-      // Bundle course id — update this if your bundle's real id in `courses` differs.
-      const BUNDLE_COURSE_ID = 'course-3';
+      const ownsLessonCourse = purchasedCourseIds.includes(lesson.course_id);
+      const ownsBundle = purchasedCourseIds.includes(BUNDLE_COURSE_ID);
 
-      const hasAccess =
-        purchasedCourseIds.includes(lesson.course_id) ||
-        purchasedCourseIds.includes(BUNDLE_COURSE_ID);
-
-      if (!hasAccess) {
+      if (!ownsLessonCourse && !ownsBundle) {
         return res.status(403).json({ error: 'Access denied. You do not own this course.' });
+      }
+
+      // Sequential unlock — Complete Creator Bundle (course-3) only.
+      // Users who own a standalone course (course-1 / course-2) are never gated.
+      const sectionKey = BUNDLE_SECTION_BY_COURSE[lesson.course_id];
+
+      // Section 2 — AI Video Generation: unlocked only when all 21 Premiere
+      // Pro lessons (course-1 ids) are completed inside the bundle.
+      if (sectionKey === 'ai' && !ownsLessonCourse) {
+        const premiereIds = await getLessonIdsForCourse('course-1');
+        const completed = await countCompletedLessons(userId, BUNDLE_COURSE_ID, premiereIds);
+        if (completed < premiereIds.length) {
+          return res.status(403).json({
+            error: 'Complete all Premiere Pro tutorials to unlock AI Video Generation.',
+            code: 'SECTION_LOCKED',
+          });
+        }
+      }
+
+      // Section 3 — Freelancing Mastery: the freelancing lessons live on
+      // course-3 itself, so every non-free access to them flows through the
+      // bundle and must satisfy the 31/31 AI lessons gate.
+      if (sectionKey === 'freelancing') {
+        const aiIds = await getLessonIdsForCourse('course-2');
+        const completed = await countCompletedLessons(userId, BUNDLE_COURSE_ID, aiIds);
+        if (completed < aiIds.length) {
+          return res.status(403).json({
+            error: 'Complete all AI Video Generation tutorials to unlock Freelancing Mastery.',
+            code: 'SECTION_LOCKED',
+          });
+        }
       }
     }
 
@@ -387,10 +536,14 @@ app.get('/api/courses', async (req, res) => {
       });
     }
 
-    const formatted = (courses || []).map((c) => {
+    const formatted = [];
+    for (const c of courses || []) {
       const row = Object.assign({}, c, { learn_items: learnItemsMap[c.id] || [] });
-      return formatCoursePublic(row);
-    });
+      if (c.id === BUNDLE_COURSE_ID) {
+        row.modules = await composeBundleModules(c.id, c.modules || []);
+      }
+      formatted.push(formatCoursePublic(row));
+    }
     return res.json(formatted);
   } catch (err) {
     console.error('[GET /api/courses] error:', err);
@@ -427,6 +580,9 @@ app.get('/api/courses/:slug', async (req, res) => {
       .order('sort_order', { ascending: true });
 
     const row = Object.assign({}, course, { learn_items: (learnItems || []).map((l) => l.item_text) });
+    if (course.id === BUNDLE_COURSE_ID) {
+      row.modules = await composeBundleModules(course.id, course.modules || []);
+    }
     return res.json(formatCoursePublic(row));
   } catch (err) {
     console.error('[GET /api/courses/:slug]', err);
