@@ -448,7 +448,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
               )}
             </div>
 
-            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
+            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8 lg:col-start-1 lg:col-span-2">
               <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Sparkles className="w-5 h-5 text-[#D7FF2F]" />What You'll Learn</h2>
               <div className="space-y-4">
                 {course.whatYoullLearn.map((item, idx) => <p key={idx} className="text-sm text-zinc-300 leading-relaxed">{item}</p>)}
@@ -457,7 +457,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
 
             
 
-            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
+            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8 lg:col-start-1 lg:col-span-2">
               <h2 className="text-xl font-bold text-white mb-6">Course Specifications</h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="bg-black/40 border border-white/[0.06] p-4 rounded-xl">
@@ -479,7 +479,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
               </div>
             </div>
 
-            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
+            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8 lg:col-start-1 lg:col-span-2">
               <h2 className="text-xl font-bold text-white mb-6">Frequently Asked Questions</h2>
               <div className="space-y-3">
                 {course.faqs.map((faq, index) => {
@@ -494,55 +494,6 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                     </div>
                   );
                 })}
-              </div>
-            </div>
-
-            {/* Full Course Curriculum (main column) - visible on mobile after FAQ and on desktop as final main content */}
-            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-white">Course Curriculum</h2>
-              </div>
-              <div className="space-y-6">
-                {Object.entries(groupedSections).map(([sectionTitle, mods]) => (
-                  <div key={sectionTitle}>
-                    <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 px-1">{sectionTitle}</h3>
-                    <div className="space-y-3">
-                      {mods.map((mod) => {
-                        const isOpen = openModuleId === mod.id;
-                        return (
-                          <div key={mod.id} className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/40">
-                            <button onClick={() => toggleModule(mod.id)} className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors">
-                              <span className="text-sm font-semibold text-white">{mod.title}</span>
-                              <div className="flex items-center gap-3 text-xs text-zinc-400">
-                                <span>{mod.lessons.length} lessons</span>
-                                {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                              </div>
-                            </button>
-                            {isOpen && (
-                              <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
-                                {mod.lessons.map((lesson: any) => {
-                                  const canPlay = isPurchased;
-                                  const isActive = lesson.id === activeLessonId;
-                                  return (
-                                    <div key={lesson.id} onClick={() => canPlay && handleSelectLesson(lesson.id)} className={`flex items-center justify-between p-3 px-4 text-sm transition-colors ${canPlay ? "cursor-pointer hover:bg-white/[0.02]" : "cursor-not-allowed"} ${isActive ? "bg-[#D7FF2F]/[0.06]" : ""}`}>
-                                      <div className="flex items-center gap-3">
-                                        {canPlay ? <PlayCircle className="w-4 h-4 text-[#D7FF2F] shrink-0" /> : <Lock className="w-4 h-4 text-zinc-500 shrink-0" />}
-                                        <div>
-                                          <p className={`font-medium ${canPlay ? "text-zinc-200" : "text-zinc-500"} ${isActive ? "text-[#D7FF2F]" : ""}`}>{lesson.title}</p>
-                                        </div>
-                                      </div>
-                                      <span className="text-xs text-zinc-500 font-mono">{lesson.duration}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
