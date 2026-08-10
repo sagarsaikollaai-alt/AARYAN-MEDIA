@@ -16,6 +16,22 @@ declare global {
   }
 }
 
+// Safely parses a fetch Response as JSON. If the body isn't valid JSON
+// (e.g. a plain-text "Not Found" from a routing/proxy miss, or an HTML
+// error page), this throws a clear, readable error instead of the raw
+// "Unexpected token 'N', 'Not Found' is not valid JSON" crash.
+async function parseJsonSafe(res: Response, fallbackLabel: string) {
+  const raw = await res.text();
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(
+      `${fallbackLabel} failed (server returned ${res.status} ${res.statusText}): ` +
+      `${raw.slice(0, 120) || 'empty response'}`
+    );
+  }
+}
+
 export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, course, user, onClose, onPaymentSuccess }) => {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,7 +61,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, course, user
         }),
       });
 
-      const orderData = await orderRes.json();
+      const orderData = await parseJsonSafe(orderRes, 'Creating order');
 
       if (!orderRes.ok) {
         throw new Error(orderData.message || 'Failed to create Razorpay order.');
@@ -90,7 +106,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, course, user
               }),
             });
 
-            const result = await verify.json();
+            const result = await parseJsonSafe(verify, 'Verifying payment');
 
             if (!result.success) {
               throw new Error(result.message || "Payment verification failed.");
@@ -108,7 +124,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, course, user
       };
 
       const razorpay = new window.Razorpay(options);
-      
+
       // Handle modal closed by user without paying
       razorpay.on('payment.failed', function (response: any) {
         setError(response.error.description || "Payment failed. Please try again.");
@@ -118,6 +134,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, course, user
       razorpay.open();
 
     } catch (err: any) {
+      console.error('Payment init failed:', err);
       setError(err.message || 'Payment failed. Please try again.');
       setLoading(false);
     }

@@ -160,56 +160,21 @@ function formatCoursePublic(row, purchasedIds = new Set()) {
 // ───────────────────────────────────────────────────────────────────────────
 // SECURE VIDEO PLAYBACK (TOKEN AUTHENTICATION)
 // ───────────────────────────────────────────────────────────────────────────
-
-// Backend source of truth for video IDs.
-// This fixes the 404 "Lesson not found" error because we no longer rely on the Supabase 
-// `lessons` table being perfectly populated with the exact string IDs used by the frontend.
-const SECURE_VIDEO_MAP = {
-  "prem_l1": "b6bc8d63-93f8-4769-89d6-b41a51228f8e",
-  "prem_l2": "acd87bb8-0421-41e1-9809-9267a3efb984",
-  "prem_l3": "662a8197-ac8a-40dc-a94d-353db5d064fc",
-  "prem_l4": "15e92f3a-8545-4437-8d4d-4c8bc70a102d",
-  "prem_l5": "6c8dbfe6-6be8-4c53-8114-f1543fa3a628",
-  "prem_l6": "54452797-0421-4096-9098-bb60d1ddb689",
-  "prem_l7": "19b68091-50a4-4d4f-8773-6d6137f2344a",
-  "prem_l8": "85746f4d-089b-4052-9372-440fd260e6d6",
-  "prem_l9": "eb1e2229-ca0d-48a0-93e9-3a0593a68ac4",
-  "prem_l10": "be314408-a239-4c62-8592-36ff363013e1",
-  "prem_l11": "0bc22d94-b8fa-4a51-aeac-b6d11fc12a11",
-  "prem_l12": "8acaf271-f5b4-4ff4-93a4-fcb209f261f0",
-  "prem_l13": "a9c5a3ec-7687-485d-a426-186dd7805c4a",
-  "prem_l14": "f74847d1-4e52-401b-ace2-934998c6445a",
-  "prem_l15": "8e0072ea-8c65-479f-9fdf-189214441a65",
-  "prem_l16": "ef3dd769-6086-431c-9c7b-311e2b065962",
-  "prem_l17": "a0857145-e8e5-406d-8b86-9952064b9c2e",
-  "prem_l18": "4f1964aa-e47f-49ac-82d4-55194b1fb0b6",
-  "prem_l19": "d6534861-5f52-4ed0-ab5f-2ea43d3d86af",
-  "prem_l20": "afabdd2c-58a3-44a7-9e1e-1ea6a9c1c27d",
-  "prem_l21": "9b969ec6-fb9f-4434-a90f-59fe1097aac2"
-};
-
-// Normalizes lesson IDs like "prem_14" -> "prem_l14" so both ID formats
-// (with or without the "l") resolve to the correct video. This protects
-// against Supabase `lessons.id` values that were saved without the "l"
-// while SECURE_VIDEO_MAP keys use the "l" format.
-function normalizeLessonId(lessonId) {
-  if (SECURE_VIDEO_MAP[lessonId]) return lessonId; // already correct format
-  const match = lessonId.match(/^([a-zA-Z]+)_(\d+)$/); // e.g. prem_14
-  if (match) {
-    const candidate = `${match[1]}_l${match[2]}`; // -> prem_l14
-    if (SECURE_VIDEO_MAP[candidate]) {
-      return candidate;
-  }
-}
-  return lessonId; // no match found; will correctly 404 downstream
-}
+//
+// Lesson video IDs are looked up live from Supabase (lessons.id -> lessons.video_id).
+// This replaces the old static SECURE_VIDEO_MAP, which used a "prem_lN" key scheme
+// that no longer matches the real lesson ids in the database (plain numbers for
+// course-1, "c2-lN" for course-2, "c3-lN" for course-3, "c4-lN" for course-4).
+//
+// Course access is resolved from the LESSON's own course_id column, not from a
+// hardcoded slug->id table. This makes the check immune to future slug renames.
 
 app.post('/api/lessons/:lessonId/playback-token', async (req, res) => {
   try {
-    const rawLessonId = req.params.lessonId;
-    const lessonId = normalizeLessonId(rawLessonId);
+    const lessonId = req.params.lessonId;
     const { courseSlug } = req.body;
 
+    if (!lessonId) return res.status(400).json({ error: 'Lesson id is required' });
     if (!courseSlug) return res.status(400).json({ error: 'Course slug is required' });
 
     // 1. Authenticate the user
@@ -225,46 +190,61 @@ app.post('/api/lessons/:lessonId/playback-token', async (req, res) => {
     }
     const userId = authData.user.id;
 
-    // 2. Find Lesson Video ID securely from the backend map
-    const videoId = SECURE_VIDEO_MAP[lessonId];
+    // 2. Look up the lesson (and its video_id + owning course_id) directly from Supabase
+    const { data: lesson, error: lessonError } = await supabase
+      .from('lessons')
+      .select('id, course_id, video_id, is_free_preview')
+      .eq('id', lessonId)
+      .single();
 
-    if (!videoId) {
-      // If it's an AI or Free lesson, we explicitly return 409 Conflict (Video Not Assigned)
-      // This tells the frontend to show "Coming Soon" instead of a "Playback Error"
-      if (rawLessonId.startsWith('ai_') || rawLessonId.startsWith('free_')) {
-        return res.status(409).json({ error: 'Coming Soon: Video not assigned yet.', code: 'VIDEO_NOT_ASSIGNED' });
-      }
-      // If it's a Premiere Pro lesson but not in the map, it's a genuine 404
+    if (lessonError || !lesson) {
       return res.status(404).json({ error: 'Lesson not found', code: 'LESSON_NOT_FOUND' });
     }
 
-    // 3. Check Course Access / Ownership
-    const { data: purchases } = await supabase
-      .from('purchases')
-      .select('course_id')
-      .eq('user_id', userId)
-      .eq('payment_status', 'success');
-
-    const purchasedCourseIds = (purchases || []).map(p => p.course_id);
-
-    // Map slugs to course IDs for authorization
-    let requiredCourseId = null;
-    if (courseSlug === 'premiere-pro-complete') requiredCourseId = '1';
-    if (courseSlug === 'ai-video-generation-masterclass') requiredCourseId = '2';
-    if (courseSlug === 'complete-creator-bundle') requiredCourseId = '3';
-
-    let hasAccess = false;
-    // Direct purchase check
-    if (requiredCourseId && purchasedCourseIds.includes(requiredCourseId)) {
-      hasAccess = true;
-    }
-    // Bundle access check (If they bought the bundle, they can access prem_ and ai_ lessons)
-    if (purchasedCourseIds.includes('3') && (courseSlug === 'premiere-pro-complete' || courseSlug === 'ai-video-generation-masterclass' || courseSlug === 'complete-creator-bundle')) {
-      hasAccess = true;
+    if (!lesson.video_id) {
+      // Lesson exists but no video has been assigned yet (e.g. upcoming content)
+      return res.status(409).json({ error: 'Coming Soon: Video not assigned yet.', code: 'VIDEO_NOT_ASSIGNED' });
     }
 
-    if (!hasAccess) {
-      return res.status(403).json({ error: 'Access denied. You do not own this course.' });
+    const videoId = lesson.video_id;
+
+    // 3. Confirm the requested courseSlug actually matches the lesson's real course,
+    // then check ownership. This also guards against a stale/incorrect slug being
+    // passed from an old cached frontend build.
+    const { data: courseRow, error: courseError } = await supabase
+      .from('courses')
+      .select('id, slug')
+      .eq('id', lesson.course_id)
+      .single();
+
+    if (courseError || !courseRow) {
+      return res.status(404).json({ error: 'Course not found for this lesson' });
+    }
+
+    if (courseRow.slug !== courseSlug) {
+      return res.status(409).json({ error: 'Course slug does not match this lesson. Please refresh the page.' });
+    }
+
+    // Free-preview lessons don't require a purchase
+    if (!lesson.is_free_preview) {
+      const { data: purchases } = await supabase
+        .from('purchases')
+        .select('course_id')
+        .eq('user_id', userId)
+        .eq('payment_status', 'success');
+
+      const purchasedCourseIds = (purchases || []).map((p) => p.course_id);
+
+      // Bundle course id — update this if your bundle's real id in `courses` differs.
+      const BUNDLE_COURSE_ID = 'course-3';
+
+      const hasAccess =
+        purchasedCourseIds.includes(lesson.course_id) ||
+        purchasedCourseIds.includes(BUNDLE_COURSE_ID);
+
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied. You do not own this course.' });
+      }
     }
 
     // 4. Generate Bunny Stream Secure Token
@@ -272,10 +252,10 @@ app.post('/api/lessons/:lessonId/playback-token', async (req, res) => {
     const stringToHash = `${BUNNY_LIBRARY_ID}${videoId}${expires}${BUNNY_API_KEY}`;
     const secureToken = crypto.createHash('sha256').update(stringToHash).digest('hex');
 
-    return res.json({ 
-      videoId: videoId, 
-      token: secureToken, 
-      expires 
+    return res.json({
+      videoId: videoId,
+      token: secureToken,
+      expires
     });
   } catch (err) {
     console.error('[playback-token] error:', err);
