@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { INITIAL_COURSES } from '../data/courses'; 
 import { 
   BookOpen, Play, Loader2, ArrowLeft, CheckCircle, 
   ChevronDown, ChevronUp, Download, MessageCircle, ExternalLink,
@@ -23,17 +22,27 @@ export function PublicCoursePage() {
   }, [slug]);
 
   const fetchCourse = async () => {
-    const { data: dbData } = await supabase.from('courses').select('*').eq('slug', slug).single();
-    const richData = INITIAL_COURSES.find(c => c.slug === slug);
+    try {
+      const { data: dbData, error } = await supabase.from('courses').select(`
+        *,
+        modules:modules(select: id, title, sort_order,
+          lessons:lessons(select: id, title, duration, duration_seconds, video_id, is_free_preview, sort_order)
+        ),
+        faqs:course_faqs(select: id, question, answer, sort_order),
+        resources:course_resources(select: id, title, description, icon_name, download_url, file_size, sort_order),
+        community:course_communities(select: id, whatsapp, instagram)
+      `).eq('slug', slug).single();
 
-    setCourse({
-      ...richData, 
-      ...dbData,
-      price: dbData?.price || richData?.price,
-      original_price: dbData?.original_price || richData?.price,
-      thumbnail: dbData?.thumbnail || richData?.thumbnail
-    });
-    setLoading(false);
+      if (error || !dbData) {
+        setCourse(null);
+      } else {
+        setCourse(dbData);
+      }
+    } catch (e) {
+      setCourse(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatINR = (amount: number) => {
