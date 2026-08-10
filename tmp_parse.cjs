@@ -1,0 +1,1 @@
+const fs = require('fs'); const parser = require('@babel/parser'); const code = fs.readFileSync('src/pages/CourseDetailsPage.tsx', 'utf8'); try { parser.parse(code, { sourceType: 'module', plugins: ['typescript', 'jsx'] }); console.log('parsed'); } catch (e) { console.error(e.message); console.error(e.codeFrame || ''); process.exit(1); }

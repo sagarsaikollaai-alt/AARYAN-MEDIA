@@ -33,12 +33,50 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   const isPurchased = isPurchasedProp === undefined ? fallbackIsPurchased : isPurchasedProp;
 
   const hasBunnyVideos = Boolean(course.bunnyStreamId);
-  const initialModules = course.modules;
+  const normalizedModules = (course.modules || []).map((mod, moduleIndex) => ({
+    ...mod,
+    id: mod.id ?? `module-${moduleIndex}`,
+    sectionTitle: mod.sectionTitle || 'MAIN',
+    lessons: (mod.lessons || []).map((lesson, lessonIndex) => ({
+      ...lesson,
+      id: lesson.id ?? `module-${moduleIndex}-lesson-${lessonIndex}`,
+    })),
+  }));
+
+  const defaultLearningItems = [
+    'Master Premiere Pro editing essentials for fast, polished videos',
+    'Build a professional timeline workflow from import to export',
+    'Create audio-rich content with transitions, effects and color grading',
+    'Optimize your videos for YouTube, reels, and short-form publishing',
+  ];
+
+  const defaultFaqs = [
+    {
+      question: 'Do I need Adobe Premiere Pro already installed?',
+      answer: 'Yes, this course assumes you have Premiere Pro installed so you can follow along with the project files.',
+    },
+    {
+      question: 'Will I get downloadable templates and assets?',
+      answer: 'Yes — downloadable resources are provided via the shared Google Drive folder and include project files and presets.',
+    },
+    {
+      question: 'Is this course suitable for beginners?',
+      answer: 'Absolutely. The course starts with the basics and builds into more advanced editing, effects, and export workflows.',
+    },
+    {
+      question: 'What language is the course taught in?',
+      answer: 'The course is delivered in Telugu with practical editing examples and clear step-by-step guidance.',
+    },
+  ];
+
+  const courseLearningItems = (course.whatYoullLearn && course.whatYoullLearn.length > 0) ? course.whatYoullLearn : defaultLearningItems;
+  const courseFaqs = (course.faqs && course.faqs.length > 0) ? course.faqs : defaultFaqs;
+  const courseLanguage = course.specs?.language && course.specs.language.toLowerCase().includes('telugu') ? course.specs.language : 'Telugu';
 
   const isCourseComingSoon = course.status === 'coming_soon';
 
   // Accordion state for modules — only ONE module can be open at a time
-  const [openModuleId, setOpenModuleId] = useState<string | null>(initialModules[0]?.id ?? null);
+  const [openModuleId, setOpenModuleId] = useState<string | null>(normalizedModules[0]?.id ?? null);
   const [openFaqIndices, setOpenFaqIndices] = useState<number[]>([0]);
   const [showCommunityModal, setShowCommunityModal] = useState(false);
 
@@ -47,7 +85,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   const [videoError, setVideoError] = useState<string | null>(null);
 
   const { saveProgress, saveProgressImmediate, getProgress, getLastWatchedLesson } = useLessonProgress(user?.id, course.id);
-  const [activeLessonId, setActiveLessonId] = useState<string | null>(initialModules[0]?.lessons[0]?.id || null);
+  const [activeLessonId, setActiveLessonId] = useState<string | null>(normalizedModules[0]?.lessons[0]?.id || null);
   const [resumeSeconds, setResumeSeconds] = useState<number>(0);
   const [progressLoaded, setProgressLoaded] = useState<boolean>(false);
 
@@ -59,11 +97,11 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
     (async () => {
       const last = await getLastWatchedLesson();
       if (last) {
-        const lesson = initialModules.flatMap((m) => m.lessons).find((l) => l.id === last.lesson_id);
+        const lesson = normalizedModules.flatMap((m) => m.lessons).find((l) => l.id === last.lesson_id);
         if (lesson) {
           setActiveLessonId(lesson.id);
           setResumeSeconds(last.last_position_seconds || 0);
-          const parentModule = initialModules.find((m) => m.lessons.some((l) => l.id === lesson.id));
+          const parentModule = normalizedModules.find((m) => m.lessons.some((l) => l.id === lesson.id));
           if (parentModule) {
             setOpenModuleId(parentModule.id);
           }
@@ -87,7 +125,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   const toggleFaq = (index: number) => setOpenFaqIndices((prev) => prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]);
 
   const handleSelectLesson = async (lessonId: string) => {
-    const selectedLesson = initialModules.flatMap((m) => m.lessons).find((l) => l.id === lessonId);
+    const selectedLesson = normalizedModules.flatMap((m) => m.lessons).find((l) => l.id === lessonId);
     if (!selectedLesson) return;
 
     setActiveLessonId(lessonId);
@@ -105,7 +143,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   const handlePlayLesson = async () => {
     if (!activeLessonId) return;
 
-    const selectedLesson = initialModules.flatMap((m) => m.lessons).find((l) => l.id === activeLessonId);
+    const selectedLesson = normalizedModules.flatMap((m) => m.lessons).find((l) => l.id === activeLessonId);
     if (!selectedLesson || selectedLesson.hasVideo === false) return;
 
     if (isPurchased && hasBunnyVideos) {
@@ -144,8 +182,8 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   };
 
   const relatedCourses = allCourses.filter((c) => c.id !== course.id).slice(0, 3);
-  const activeLesson = initialModules.flatMap(m => m.lessons).find(l => l.id === activeLessonId);
-  const activeModule = initialModules.find(m => m.lessons.some(l => l.id === activeLessonId));
+  const activeLesson = normalizedModules.flatMap(m => m.lessons).find(l => l.id === activeLessonId);
+  const activeModule = normalizedModules.find(m => m.lessons.some(l => l.id === activeLessonId));
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -170,7 +208,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
     uiState = 'playing';
   }
 
-  const groupedSections = initialModules.reduce((acc, mod) => {
+  const groupedSections = normalizedModules.reduce((acc, mod) => {
     const section = mod.sectionTitle || 'MAIN';
     if (!acc[section]) acc[section] = [];
     acc[section].push(mod);
@@ -196,10 +234,11 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
           <p className="text-zinc-400 text-base sm:text-lg leading-relaxed max-w-3xl">{course.description}</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 items-start mb-12">
+        <div className="space-y-8 mb-12">
 
-          <div className="lg:col-span-2 space-y-8">
-            <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {/* LEFT COLUMN: Video Player with bottom bar overlay */}
+            <div className="lg:col-span-2 space-y-4">
               {/* 1. Video Player */}
               <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/[0.08] shadow-2xl">
 
@@ -280,12 +319,14 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                       onLeave={(seconds, duration) => activeLessonId && saveProgressImmediate(activeLessonId, seconds, duration)}
                     />
                     {isPurchased && user && (
-                      <div className="absolute bottom-4 right-4 z-50 text-white/50 font-bold text-sm pointer-events-none select-none">
+                      <div className="absolute top-4 right-4 z-50 text-white/50 font-bold text-xs pointer-events-none select-none bg-black/50 px-2 py-1 rounded">
                         Licensed to: {user.email}
                       </div>
                     )}
                   </div>
                 )}
+
+                {/* Bottom bar overlay removed — the controls now live in the "Currently Selected" bar under the video */}
 
                 {uiState === 'poster' && (
                   <button
@@ -310,197 +351,89 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                 )}
               </div>
 
-              {/* 2. Currently Selected Bar (Moved directly under video) */}
-              {isPurchased && activeLesson && (
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111111] border border-white/[0.08] rounded-xl p-3">
-                  <div>
-                    <span className="text-[#D7FF2F] text-xs font-bold uppercase tracking-wider">Currently Selected</span>
-                    <h3 className="text-sm font-semibold text-white mt-0.5">{activeLesson.title}</h3>
-                  </div>
-                  {isPurchased && (
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => {
-                        const idx = initialModules.flatMap(m=>m.lessons).findIndex(l => l.id === activeLessonId);
-                        if (idx > 0) handleSelectLesson(initialModules.flatMap(m=>m.lessons)[idx - 1].id);
-                      }} className="p-2 bg-[#1F1F1F] hover:bg-[#2a2a2a] rounded-lg transition-colors">
-                        <ChevronLeft className="w-4 h-4 text-white" />
-                      </button>
-                      <button onClick={() => {
-                        const idx = initialModules.flatMap(m=>m.lessons).findIndex(l => l.id === activeLessonId);
-                        const lessons = initialModules.flatMap(m=>m.lessons);
-                        if (idx < lessons.length - 1) handleSelectLesson(lessons[idx + 1].id);
-                      }} className="p-2 bg-[#1F1F1F] hover:bg-[#2a2a2a] rounded-lg transition-colors">
-                        <ChevronRight className="w-4 h-4 text-white" />
-                      </button>
-                    </div>
+              {/* 2. Currently Selected Bar — under the video player.
+                  Layout (left → right): [Resources] [Currently Selected label + active lesson + prev/next] [Community + Instructor] */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111111] border border-white/[0.08] rounded-xl p-3">
+                {/* LEFT: Resources button */}
+                <div className="flex items-center gap-2 order-1">
+                  {course.downloadableResources && course.downloadableResources.length > 0 ? (
+                    <a
+                      href={course.downloadableResources[0].downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] text-white text-[10px] sm:text-xs font-bold px-3 sm:px-4 py-2 rounded-full transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Resources</span>
+                    </a>
+                  ) : (
+                    <a
+                      href="https://drive.google.com/drive/folders/1tcFPMUDGMP47cXseZsBqUuVnmaRhKmEn?usp=sharing"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] text-white text-[10px] sm:text-xs font-bold px-3 sm:px-4 py-2 rounded-full transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Resources</span>
+                    </a>
                   )}
                 </div>
-              )}
 
-              {/* Sidebar items inserted here for mobile order (these move to the right column on lg screens) */}
-              {isPurchased && course.community && (
-                <div className="lg:col-start-3 lg:col-span-1">
-                  <button onClick={() => setShowCommunityModal(true)} className="flex items-center gap-2 w-full bg-[#111111] border border-white/[0.08] hover:border-[#D7FF2F] text-white hover:text-[#D7FF2F] px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
-                    <Users className="w-4 h-4 text-[#D7FF2F]" /> Join Community
-                  </button>
-                </div>
-              )}
-
-              {isPurchased && (
-                <div className="lg:col-start-3 lg:col-span-1">
-                  <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6">
-                    <div className="text-xs text-zinc-500 uppercase tracking-wider mb-3">Instructor</div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-[#D7FF2F]/20 text-[#D7FF2F] border border-[#D7FF2F]/40 flex items-center justify-center font-bold text-lg">
-                        {course.instructor[0]}
-                      </div>
+                {/* CENTER: Currently Selected label + active lesson + prev/next chevrons */}
+                <div className="flex items-center gap-2 order-3 sm:order-2 w-full sm:w-auto justify-between sm:justify-start">
+                  {isPurchased && activeLesson ? (
+                    <div className="flex items-center gap-2 sm:gap-3">
                       <div>
-                        <span className="text-sm font-semibold text-white block">{course.instructor}</span>
-                        <span className="text-xs text-zinc-400">Lead Creator at Aaryan Media</span>
+                        <span className="text-[#D7FF2F] text-[10px] sm:text-xs font-bold uppercase tracking-wider">Currently Selected</span>
+                        <h3 className="text-xs sm:text-sm font-semibold text-white mt-0.5 truncate max-w-[200px] sm:max-w-none">{activeLesson.title}</h3>
                       </div>
+                      {isPurchased && (
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => {
+                            const idx = normalizedModules.flatMap(m=>m.lessons).findIndex(l => l.id === activeLessonId);
+                            if (idx > 0) handleSelectLesson(normalizedModules.flatMap(m=>m.lessons)[idx - 1].id);
+                          }} className="p-1.5 sm:p-2 bg-[#1F1F1F] hover:bg-[#2a2a2a] rounded-lg transition-colors">
+                            <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                          </button>
+                          <button onClick={() => {
+                            const idx = normalizedModules.flatMap(m=>m.lessons).findIndex(l => l.id === activeLessonId);
+                            const lessons = normalizedModules.flatMap(m=>m.lessons);
+                            if (idx < lessons.length - 1) handleSelectLesson(lessons[idx + 1].id);
+                          }} className="p-1.5 sm:p-2 bg-[#1F1F1F] hover:bg-[#2a2a2a] rounded-lg transition-colors">
+                            <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  ) : (
+                    <span className="text-[10px] sm:text-xs text-zinc-500 font-semibold uppercase tracking-wider">Currently Selected</span>
+                  )}
                 </div>
-              )}
 
-              {course.downloadableResources && course.downloadableResources.length > 0 && (
-                <div className="lg:col-start-3 lg:col-span-1">
-                  <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
-                    <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2"><Download className="w-5 h-5 text-[#D7FF2F]" />Downloadable Resources</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
-                      {course.downloadableResources.map((res: any) => {
-                        const Icon = IconMap[res.iconName] || Package;
-                        return (
-                          <div key={res.id} className="flex items-start gap-3 p-4 bg-[#0A0A0A] border border-white/[0.04] rounded-xl hover:border-[#D7FF2F]/30 transition-all group">
-                            <Icon className="w-5 h-5 text-zinc-500 group-hover:text-[#D7FF2F] mt-0.5 shrink-0" />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between mb-1">
-                                <p className="text-sm font-medium text-zinc-200 truncate pr-2">{res.title}</p>
-                                <span className="text-[10px] text-zinc-500 font-mono bg-white/[0.04] px-2 py-0.5 rounded-full shrink-0">{res.size}</span>
-                              </div>
-                              <p className="text-xs text-zinc-500 mb-3">{res.description}</p>
-                              <a
-                                href={res.downloadUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-[#D7FF2F] font-bold flex items-center gap-1.5 hover:underline cursor-pointer"
-                              >
-                                <Download className="w-3 h-3" /> Download
-                              </a>
-                            </div>
-                          </div>
-                        );
-                      })}
+                {/* RIGHT: Community button + Instructor pill */}
+                <div className="flex items-center gap-2 order-2 sm:order-3">
+                  {isPurchased && course.community && (
+                    <button
+                      onClick={() => setShowCommunityModal(true)}
+                      className="inline-flex items-center gap-1.5 bg-[#D7FF2F] text-black text-[10px] sm:text-xs font-bold px-3 sm:px-4 py-2 rounded-full hover:bg-[#C7F51A] transition-colors"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span>Join Community</span>
+                    </button>
+                  )}
+                  <div className="inline-flex items-center gap-2 bg-black/40 border border-white/[0.08] text-white text-[10px] sm:text-xs font-semibold px-3 sm:px-4 py-2 rounded-full">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#D7FF2F]/20 text-[#D7FF2F] border border-[#D7FF2F]/40 flex items-center justify-center font-bold text-[10px] sm:text-xs">
+                      {course.instructor[0]}
                     </div>
+                    <span className="truncate max-w-[120px] sm:max-w-none">{course.instructor}</span>
                   </div>
-                
-                  {/* Modules (Course Curriculum) - place here in DOM for mobile, move to sidebar on lg */}
-                  <div className="lg:col-start-3 lg:col-span-1">
-                    <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6">
-                      <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-lg font-bold text-white">Course Curriculum</h2>
-                      </div>
-                      <div className="space-y-6">
-                        {Object.entries(groupedSections).map(([sectionTitle, mods]) => (
-                          <div key={sectionTitle}>
-                            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 px-1">{sectionTitle}</h3>
-                            <div className="space-y-3">
-                              {mods.map((mod) => {
-                                const isOpen = openModuleId === mod.id;
-                                return (
-                                  <div key={mod.id} className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/40">
-                                    <button onClick={() => toggleModule(mod.id)} className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors">
-                                      <span className="text-sm font-semibold text-white">{mod.title}</span>
-                                      <div className="flex items-center gap-3 text-xs text-zinc-400">
-                                        <span>{mod.lessons.length} lessons</span>
-                                        {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                      </div>
-                                    </button>
-                                    {isOpen && (
-                                      <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
-                                        {mod.lessons.map((lesson: any) => {
-                                          const canPlay = isPurchased;
-                                          const isActive = lesson.id === activeLessonId;
-                                          return (
-                                            <div key={lesson.id} onClick={() => canPlay && handleSelectLesson(lesson.id)} className={`flex items-center justify-between p-3 px-4 text-sm transition-colors ${canPlay ? "cursor-pointer hover:bg-white/[0.02]" : "cursor-not-allowed"} ${isActive ? "bg-[#D7FF2F]/[0.06]" : ""}`}>
-                                              <div className="flex items-center gap-3">
-                                                {canPlay ? <PlayCircle className="w-4 h-4 text-[#D7FF2F] shrink-0" /> : <Lock className="w-4 h-4 text-zinc-500 shrink-0" />}
-                                                <div>
-                                                  <p className={`font-medium ${canPlay ? "text-zinc-200" : "text-zinc-500"} ${isActive ? "text-[#D7FF2F]" : ""}`}>{lesson.title}</p>
-                                                </div>
-                                              </div>
-                                              <span className="text-xs text-zinc-500 font-mono">{lesson.duration}</span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8 lg:col-start-1 lg:col-span-2">
-              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Sparkles className="w-5 h-5 text-[#D7FF2F]" />What You'll Learn</h2>
-              <div className="space-y-4">
-                {course.whatYoullLearn.map((item, idx) => <p key={idx} className="text-sm text-zinc-300 leading-relaxed">{item}</p>)}
-              </div>
-            </div>
-
-            
-
-            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8 lg:col-start-1 lg:col-span-2">
-              <h2 className="text-xl font-bold text-white mb-6">Course Specifications</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-black/40 border border-white/[0.06] p-4 rounded-xl">
-                  <div className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5"><Globe className="w-3.5 h-3.5 text-zinc-400" /> Language</div>
-                  <span className="text-sm font-semibold text-white">{course.specs?.language || 'Telugu'}</span>
-                </div>
-                <div className="bg-black/40 border border-white/[0.06] p-4 rounded-xl">
-                  <div className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-zinc-400" /> Last Updated</div>
-                  <span className="text-sm font-semibold text-white">{course.specs?.lastUpdated || 'Recently'}</span>
-                </div>
-                <div className="bg-black/40 border border-white/[0.06] p-4 rounded-xl">
-                  <div className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-zinc-400" /> Certificate</div>
-                  <span className="text-sm font-semibold text-white">Included</span>
-                </div>
-                <div className="bg-black/40 border border-white/[0.06] p-4 rounded-xl">
-                  <div className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-zinc-400" /> Access</div>
-                  <span className="text-sm font-semibold text-white">{course.specs?.access || 'Lifetime'}</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8 lg:col-start-1 lg:col-span-2">
-              <h2 className="text-xl font-bold text-white mb-6">Frequently Asked Questions</h2>
-              <div className="space-y-3">
-                {course.faqs.map((faq, index) => {
-                  const isOpen = openFaqIndices.includes(index);
-                  return (
-                    <div key={index} className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/40">
-                      <button onClick={() => toggleFaq(index)} className="w-full text-left p-4 flex items-center justify-between text-base font-semibold text-white hover:bg-white/[0.02] transition-colors">
-                        <span>{faq.question}</span>
-                        {isOpen ? <ChevronUp className="w-4 h-4 text-zinc-400 shrink-0 ml-2" /> : <ChevronDown className="w-4 h-4 text-zinc-400 shrink-0 ml-2" />}
-                      </button>
-                      {isOpen && <div className="p-4 pt-0 text-sm text-zinc-300 border-t border-white/[0.04] leading-relaxed">{faq.answer}</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-1">
-            <div className="lg:sticky lg:top-24 space-y-6 max-h-[calc(100vh-6rem)] overflow-y-auto pb-4 no-scrollbar">
-
+            {/* RIGHT COLUMN: Enroll Today + Course Curriculum */}
+            <div className="lg:col-span-1 space-y-6">
+              {/* 2. Enroll Today (disappears after purchase) */}
               {!isPurchased && !isCourseComingSoon && (
                 <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 space-y-5 shadow-2xl">
                   <div>
@@ -519,7 +452,109 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                 </div>
               )}
 
-              
+              {/* 4. Course Curriculum */}
+              <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-bold text-white">Course Curriculum</h2>
+                </div>
+                <div className="space-y-6">
+                  {Object.entries(groupedSections).map(([sectionTitle, mods]) => (
+                    <div key={sectionTitle}>
+                      <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 px-1">{sectionTitle}</h3>
+                      <div className="space-y-3">
+                        {mods.map((mod) => {
+                          const isOpen = openModuleId === mod.id;
+                          return (
+                            <div key={mod.id} className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/40">
+                              <button onClick={() => toggleModule(mod.id)} className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors">
+                                <span className="text-sm font-semibold text-white">{mod.title}</span>
+                                <div className="flex items-center gap-3 text-xs text-zinc-400">
+                                  <span>{mod.lessons.length} lessons</span>
+                                  {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                </div>
+                              </button>
+                              {isOpen && (
+                                <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
+                                  {mod.lessons.map((lesson: any) => {
+                                    const canPlay = isPurchased;
+                                    const isActive = lesson.id === activeLessonId;
+                                    return (
+                                      <div key={lesson.id} onClick={() => canPlay && handleSelectLesson(lesson.id)} className={`flex items-center justify-between p-3 px-4 text-sm transition-colors ${canPlay ? "cursor-pointer hover:bg-white/[0.02]" : "cursor-not-allowed"} ${isActive ? "bg-[#D7FF2F]/[0.06]" : ""}`}>
+                                        <div className="flex items-center gap-3">
+                                          {canPlay ? <PlayCircle className="w-4 h-4 text-[#D7FF2F] shrink-0" /> : <Lock className="w-4 h-4 text-zinc-500 shrink-0" />}
+                                          <div>
+                                            <p className={`font-medium ${canPlay ? "text-zinc-200" : "text-zinc-500"} ${isActive ? "text-[#D7FF2F]" : ""}`}>{lesson.title}</p>
+                                          </div>
+                                        </div>
+                                        <span className="text-xs text-zinc-500 font-mono">{lesson.duration}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Full-width sections below */}
+          <div className="space-y-8">
+
+            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Sparkles className="w-5 h-5 text-[#D7FF2F]" />What You'll Learn</h2>
+              <div className="space-y-4">
+                {courseLearningItems.map((item, idx) => (
+                  <p key={idx} className="text-sm text-zinc-300 leading-relaxed">{item}</p>
+                ))}
+              </div>
+            </div>
+
+            
+
+            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
+              <h2 className="text-xl font-bold text-white mb-6">Course Specifications</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-black/40 border border-white/[0.06] p-4 rounded-xl">
+                  <div className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5"><Globe className="w-3.5 h-3.5 text-zinc-400" /> Language</div>
+                  <span className="text-sm font-semibold text-white">{courseLanguage}</span>
+                </div>
+                <div className="bg-black/40 border border-white/[0.06] p-4 rounded-xl">
+                  <div className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-zinc-400" /> Last Updated</div>
+                  <span className="text-sm font-semibold text-white">{course.specs?.lastUpdated || 'Recently'}</span>
+                </div>
+                <div className="bg-black/40 border border-white/[0.06] p-4 rounded-xl">
+                  <div className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-zinc-400" /> Certificate</div>
+                  <span className="text-sm font-semibold text-white">Included</span>
+                </div>
+                <div className="bg-black/40 border border-white/[0.06] p-4 rounded-xl">
+                  <div className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-zinc-400" /> Access</div>
+                  <span className="text-sm font-semibold text-white">{course.specs?.access || 'Lifetime'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
+              <h2 className="text-xl font-bold text-white mb-6">Frequently Asked Questions</h2>
+              <div className="space-y-3">
+                {courseFaqs.map((faq, index) => {
+                  const isOpen = openFaqIndices.includes(index);
+                  return (
+                    <div key={index} className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/40">
+                      <button onClick={() => toggleFaq(index)} className="w-full text-left p-4 flex items-center justify-between text-base font-semibold text-white hover:bg-white/[0.02] transition-colors">
+                        <span>{faq.question}</span>
+                        {isOpen ? <ChevronUp className="w-4 h-4 text-zinc-400 shrink-0 ml-2" /> : <ChevronDown className="w-4 h-4 text-zinc-400 shrink-0 ml-2" />}
+                      </button>
+                      {isOpen && <div className="p-4 pt-0 text-sm text-zinc-300 border-t border-white/[0.04] leading-relaxed">{faq.answer}</div>}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
