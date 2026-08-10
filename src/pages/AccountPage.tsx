@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { INITIAL_COURSES } from '../data/courses';
 import { UserProfile } from '../types';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
