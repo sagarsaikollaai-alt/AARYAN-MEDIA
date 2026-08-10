@@ -1,5 +1,5 @@
 import VideoPlayer from "../components/VideoPlayer";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Course, UserProfile } from '../types';
 import { useLessonProgress } from '../hooks/useLessonProgress';
@@ -89,6 +89,92 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   const [resumeSeconds, setResumeSeconds] = useState<number>(0);
   const [progressLoaded, setProgressLoaded] = useState<boolean>(false);
 
+  // ── Complete Creator Bundle (course-3): sequential section unlock ──
+  // Section 1 (Premiere Pro) is unlocked on purchase.
+  // Section 2 (AI) unlocks when all 21 Premiere Pro lessons are completed.
+  // Section 3 (Freelancing) unlocks when all 31 AI lessons are completed.
+  const BUNDLE_COURSE_ID = 'course-3';
+  const isBundle = course.id === BUNDLE_COURSE_ID;
+
+  const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(new Set());
+
+  const sections = normalizedModules.reduce((acc, mod) => {
+    const title = mod.sectionTitle || 'MAIN';
+    if (!acc[title]) acc[title] = [];
+    acc[title].push(mod);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  const sectionList = Object.entries(sections).map(([title, mods]) => ({
+    key: (mods[0]?.section as string) || 'main',
+    title,
+    mods,
+    lessonIds: mods.flatMap((m) => m.lessons.map((l: any) => l.id as string)),
+  }));
+
+  const countCompletedIn = (lessonIds: string[], completed: Set<string>) =>
+    lessonIds.filter((id) => completed.has(id)).length;
+
+  const isSectionUnlocked = (sectionKey: string, completed: Set<string> = completedLessonIds) => {
+    if (!isBundle) return true;
+    const premiere = sectionList.find((s) => s.key === 'premiere');
+    const ai = sectionList.find((s) => s.key === 'ai');
+    if (sectionKey === 'premiere' || !premiere || !ai) return true;
+    if (sectionKey === 'ai') {
+      return countCompletedIn(premiere.lessonIds, completed) >= premiere.lessonIds.length;
+    }
+    if (sectionKey === 'freelancing') {
+      return countCompletedIn(ai.lessonIds, completed) >= ai.lessonIds.length;
+    }
+    return true;
+  };
+
+  const isLessonLocked = (lessonId: string, completed: Set<string> = completedLessonIds) => {
+    if (!isBundle) return false;
+    const sec = sectionList.find((s) => s.lessonIds.includes(lessonId));
+    return sec ? !isSectionUnlocked(sec.key, completed) : false;
+  };
+
+  const lockInfoFor = (sectionKey: string) => {
+    if (sectionKey === 'ai') {
+      const premiere = sectionList.find((s) => s.key === 'premiere');
+      return {
+        message: 'Complete all Premiere Pro tutorials to unlock AI Video Generation.',
+        label: 'Premiere Pro lessons completed',
+        completed: premiere ? countCompletedIn(premiere.lessonIds, completedLessonIds) : 0,
+        target: premiere ? premiere.lessonIds.length : 0,
+      };
+    }
+    if (sectionKey === 'freelancing') {
+      const ai = sectionList.find((s) => s.key === 'ai');
+      return {
+        message: 'Complete all AI Video Generation tutorials to unlock Freelancing Mastery.',
+        label: 'AI lessons completed',
+        completed: ai ? countCompletedIn(ai.lessonIds, completedLessonIds) : 0,
+        target: ai ? ai.lessonIds.length : 0,
+      };
+    }
+    return null;
+  };
+
+  const lockedSectionMessage = (lessonId: string) => {
+    const sec = sectionList.find((s) => s.lessonIds.includes(lessonId));
+    if (!sec) return 'Complete the previous section to unlock this section.';
+    const info = lockInfoFor(sec.key);
+    return info ? info.message : 'Complete the previous section to unlock this section.';
+  };
+
+  const refreshCompletedLessons = useCallback(async () => {
+    if (!isBundle || !user?.id) return;
+    const { data } = await supabase
+      .from('lesson_progress')
+      .select('lesson_id')
+      .eq('user_id', user.id)
+      .eq('course_id', course.id)
+      .eq('completed', true);
+    setCompletedLessonIds(new Set((data || []).map((r) => r.lesson_id)));
+  }, [isBundle, user?.id, course.id]);
+
   useEffect(() => {
     if (!isPurchased || !hasBunnyVideos || !user?.id) {
       setProgressLoaded(true);
@@ -96,9 +182,20 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
     }
     (async () => {
       const last = await getLastWatchedLesson();
+      let completed: Set<string> = new Set();
+      if (isBundle) {
+        const { data } = await supabase
+          .from('lesson_progress')
+          .select('lesson_id')
+          .eq('user_id', user.id)
+          .eq('course_id', course.id)
+          .eq('completed', true);
+        completed = new Set((data || []).map((r) => r.lesson_id));
+        setCompletedLessonIds(completed);
+      }
       if (last) {
         const lesson = normalizedModules.flatMap((m) => m.lessons).find((l) => l.id === last.lesson_id);
-        if (lesson) {
+        if (lesson && !isLessonLocked(lesson.id, completed)) {
           setActiveLessonId(lesson.id);
           setResumeSeconds(last.last_position_seconds || 0);
           const parentModule = normalizedModules.find((m) => m.lessons.some((l) => l.id === lesson.id));
@@ -127,6 +224,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   const handleSelectLesson = async (lessonId: string) => {
     const selectedLesson = normalizedModules.flatMap((m) => m.lessons).find((l) => l.id === lessonId);
     if (!selectedLesson) return;
+    if (isLessonLocked(lessonId)) return;
 
     setActiveLessonId(lessonId);
     setPlaybackData(null);
@@ -145,6 +243,11 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
 
     const selectedLesson = normalizedModules.flatMap((m) => m.lessons).find((l) => l.id === activeLessonId);
     if (!selectedLesson || selectedLesson.hasVideo === false) return;
+
+    if (isLessonLocked(activeLessonId)) {
+      setVideoError(lockedSectionMessage(activeLessonId));
+      return;
+    }
 
     if (isPurchased && hasBunnyVideos) {
       setIsFetchingVideo(true);
@@ -181,6 +284,31 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
     }
   };
 
+  const handleVideoProgress = (seconds: number, duration: number) => {
+    if (!activeLessonId) return;
+    const lessonId = activeLessonId;
+    const completed = duration ? seconds / duration > 0.95 : false;
+    if (completed && !completedLessonIds.has(lessonId)) {
+      setCompletedLessonIds((prev) => {
+        if (prev.has(lessonId)) return prev;
+        const next = new Set(prev);
+        next.add(lessonId);
+        return next;
+      });
+      // Write completed=true to Supabase immediately so the unlock gate
+      // (frontend AND backend) sees it without waiting for the throttle.
+      saveProgressImmediate(lessonId, seconds, duration);
+      refreshCompletedLessons();
+    }
+    saveProgress(lessonId, seconds, duration);
+  };
+
+  const handleVideoLeave = async (seconds: number, duration: number) => {
+    if (!activeLessonId) return;
+    saveProgressImmediate(activeLessonId, seconds, duration);
+    await refreshCompletedLessons();
+  };
+
   const relatedCourses = allCourses.filter((c) => c.id !== course.id).slice(0, 3);
   const activeLesson = normalizedModules.flatMap(m => m.lessons).find(l => l.id === activeLessonId);
   const activeModule = normalizedModules.find(m => m.lessons.some(l => l.id === activeLessonId));
@@ -192,7 +320,9 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   };
 
   let uiState = 'poster';
-  if (!isPurchased) {
+  if (isLessonLocked(activeLessonId || '')) {
+    uiState = 'section_locked';
+  } else if (!isPurchased) {
     if (isCourseComingSoon) {
       uiState = 'coming_soon_global';
     } else {
@@ -208,12 +338,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
     uiState = 'playing';
   }
 
-  const groupedSections = normalizedModules.reduce((acc, mod) => {
-    const section = mod.sectionTitle || 'MAIN';
-    if (!acc[section]) acc[section] = [];
-    acc[section].push(mod);
-    return acc;
-  }, {} as Record<string, any[]>);
+  const groupedSections = sections;
 
   return (
     <div className="min-h-screen bg-[#050505] text-white pt-20 sm:pt-24 pb-12 selection:bg-[#D7FF2F] selection:text-black">
@@ -288,6 +413,18 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                   </div>
                 )}
 
+                {uiState === 'section_locked' && (
+                  <div className="relative w-full h-full flex flex-col items-center justify-center bg-zinc-900 overflow-hidden">
+                    <img src={course.thumbnail} alt={course.title} className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none" />
+                    <div className="absolute inset-0 bg-black/60 pointer-events-none"></div>
+                    <div className="relative z-10 flex flex-col items-center justify-center gap-3 p-6 text-center">
+                      <Lock className="w-10 h-10 text-zinc-400 mb-2" />
+                      <p className="text-white font-bold text-lg">Section Locked</p>
+                      <p className="text-zinc-400 text-sm max-w-xs">{lockedSectionMessage(activeLessonId || '')}</p>
+                    </div>
+                  </div>
+                )}
+
                 {uiState === 'loading' && (
                   <div className="w-full h-full flex flex-col items-center justify-center gap-4">
                     <div className="w-8 h-8 border-2 border-[#D7FF2F]/30 border-t-[#D7FF2F] rounded-full animate-spin"></div>
@@ -315,8 +452,8 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                       expires={playbackData.expires}
                       resumeSeconds={resumeSeconds}
                       autoplay={true}
-                      onProgress={(seconds, duration) => activeLessonId && saveProgress(activeLessonId, seconds, duration)}
-                      onLeave={(seconds, duration) => activeLessonId && saveProgressImmediate(activeLessonId, seconds, duration)}
+                      onProgress={handleVideoProgress}
+                      onLeave={handleVideoLeave}
                     />
                     {isPurchased && user && (
                       <div className="absolute top-4 right-4 z-50 text-white/50 font-bold text-xs pointer-events-none select-none bg-black/50 px-2 py-1 rounded">
@@ -456,48 +593,129 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
               <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg font-bold text-white">Course Curriculum</h2>
+                  {isBundle && (
+                    <span className="text-xs text-zinc-400 shrink-0">
+                      {sectionList.reduce((s, x) => s + x.mods.length, 0)} Modules · {sectionList.reduce((s, x) => s + x.lessonIds.length, 0)} Lessons
+                    </span>
+                  )}
                 </div>
                 <div className="space-y-6">
-                  {Object.entries(groupedSections).map(([sectionTitle, mods]) => (
-                    <div key={sectionTitle}>
-                      <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 px-1">{sectionTitle}</h3>
-                      <div className="space-y-3">
-                        {mods.map((mod) => {
-                          const isOpen = openModuleId === mod.id;
-                          return (
-                            <div key={mod.id} className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/40">
-                              <button onClick={() => toggleModule(mod.id)} className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors">
-                                <span className="text-sm font-semibold text-white">{mod.title}</span>
-                                <div className="flex items-center gap-3 text-xs text-zinc-400">
-                                  <span>{mod.lessons.length} lessons</span>
-                                  {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  {isBundle ? (
+                    sectionList.map((sec) => {
+                      const unlocked = isSectionUnlocked(sec.key);
+                      const lockInfo = lockInfoFor(sec.key);
+                      return (
+                        <div key={sec.key} className={`border border-white/[0.06] rounded-xl overflow-hidden bg-black/40 ${unlocked ? '' : 'cursor-not-allowed'}`}>
+                          <div className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                {unlocked ? (
+                                  <Check className="w-5 h-5 text-[#D7FF2F] shrink-0 mt-0.5" />
+                                ) : (
+                                  <Lock className="w-5 h-5 text-zinc-500 shrink-0 mt-0.5" />
+                                )}
+                                <div>
+                                  <h3 className="text-sm font-bold text-white leading-snug">{sec.title}</h3>
+                                  <p className="text-xs text-zinc-400 mt-1">
+                                    {sec.mods.length} Modules · {sec.lessonIds.length} Lessons
+                                  </p>
                                 </div>
-                              </button>
-                              {isOpen && (
-                                <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
-                                  {mod.lessons.map((lesson: any) => {
-                                    const canPlay = isPurchased;
-                                    const isActive = lesson.id === activeLessonId;
-                                    return (
-                                      <div key={lesson.id} onClick={() => canPlay && handleSelectLesson(lesson.id)} className={`flex items-center justify-between p-3 px-4 text-sm transition-colors ${canPlay ? "cursor-pointer hover:bg-white/[0.02]" : "cursor-not-allowed"} ${isActive ? "bg-[#D7FF2F]/[0.06]" : ""}`}>
-                                        <div className="flex items-center gap-3">
-                                          {canPlay ? <PlayCircle className="w-4 h-4 text-[#D7FF2F] shrink-0" /> : <Lock className="w-4 h-4 text-zinc-500 shrink-0" />}
-                                          <div>
-                                            <p className={`font-medium ${canPlay ? "text-zinc-200" : "text-zinc-500"} ${isActive ? "text-[#D7FF2F]" : ""}`}>{lesson.title}</p>
-                                          </div>
-                                        </div>
-                                        <span className="text-xs text-zinc-500 font-mono">{lesson.duration}</span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
+                              </div>
+                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0 ${unlocked ? 'bg-[#D7FF2F]/10 text-[#D7FF2F]' : 'bg-white/[0.05] text-zinc-400'}`}>
+                                {unlocked ? 'Unlocked' : 'Locked'}
+                              </span>
                             </div>
-                          );
-                        })}
+                            {!unlocked && lockInfo && (
+                              <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-1.5">
+                                <p className="text-xs text-zinc-400 leading-relaxed">{lockInfo.message}</p>
+                                <p className="text-xs font-semibold text-[#D7FF2F]">
+                                  {lockInfo.completed} / {lockInfo.target} {lockInfo.label}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          {unlocked && (
+                            <div className="px-4 pb-4 space-y-3">
+                              {sec.mods.map((mod) => {
+                                const isOpen = openModuleId === mod.id;
+                                return (
+                                  <div key={mod.id} className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/40">
+                                    <button onClick={() => toggleModule(mod.id)} className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors">
+                                      <span className="text-sm font-semibold text-white">{mod.title}</span>
+                                      <div className="flex items-center gap-3 text-xs text-zinc-400">
+                                        <span>{mod.lessons.length} lessons</span>
+                                        {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                      </div>
+                                    </button>
+                                    {isOpen && (
+                                      <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
+                                        {mod.lessons.map((lesson: any) => {
+                                          const canPlay = isPurchased && !isLessonLocked(lesson.id);
+                                          const isActive = lesson.id === activeLessonId;
+                                          return (
+                                            <div key={lesson.id} onClick={() => canPlay && handleSelectLesson(lesson.id)} className={`flex items-center justify-between p-3 px-4 text-sm transition-colors ${canPlay ? "cursor-pointer hover:bg-white/[0.02]" : "cursor-not-allowed"} ${isActive ? "bg-[#D7FF2F]/[0.06]" : ""}`}>
+                                              <div className="flex items-center gap-3">
+                                                {canPlay ? <PlayCircle className="w-4 h-4 text-[#D7FF2F] shrink-0" /> : <Lock className="w-4 h-4 text-zinc-500 shrink-0" />}
+                                                <div>
+                                                  <p className={`font-medium ${canPlay ? "text-zinc-200" : "text-zinc-500"} ${isActive ? "text-[#D7FF2F]" : ""}`}>{lesson.title}</p>
+                                                </div>
+                                              </div>
+                                              <span className="text-xs text-zinc-500 font-mono">{lesson.duration}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    Object.entries(groupedSections).map(([sectionTitle, mods]) => (
+                      <div key={sectionTitle}>
+                        <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 px-1">{sectionTitle}</h3>
+                        <div className="space-y-3">
+                          {mods.map((mod) => {
+                            const isOpen = openModuleId === mod.id;
+                            return (
+                              <div key={mod.id} className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/40">
+                                <button onClick={() => toggleModule(mod.id)} className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors">
+                                  <span className="text-sm font-semibold text-white">{mod.title}</span>
+                                  <div className="flex items-center gap-3 text-xs text-zinc-400">
+                                    <span>{mod.lessons.length} lessons</span>
+                                    {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                  </div>
+                                </button>
+                                {isOpen && (
+                                  <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
+                                    {mod.lessons.map((lesson: any) => {
+                                      const canPlay = isPurchased;
+                                      const isActive = lesson.id === activeLessonId;
+                                      return (
+                                        <div key={lesson.id} onClick={() => canPlay && handleSelectLesson(lesson.id)} className={`flex items-center justify-between p-3 px-4 text-sm transition-colors ${canPlay ? "cursor-pointer hover:bg-white/[0.02]" : "cursor-not-allowed"} ${isActive ? "bg-[#D7FF2F]/[0.06]" : ""}`}>
+                                          <div className="flex items-center gap-3">
+                                            {canPlay ? <PlayCircle className="w-4 h-4 text-[#D7FF2F] shrink-0" /> : <Lock className="w-4 h-4 text-zinc-500 shrink-0" />}
+                                            <div>
+                                              <p className={`font-medium ${canPlay ? "text-zinc-200" : "text-zinc-500"} ${isActive ? "text-[#D7FF2F]" : ""}`}>{lesson.title}</p>
+                                            </div>
+                                          </div>
+                                          <span className="text-xs text-zinc-500 font-mono">{lesson.duration}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>
