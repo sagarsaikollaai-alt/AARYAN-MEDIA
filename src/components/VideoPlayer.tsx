@@ -88,7 +88,7 @@ export default function VideoPlayer({
         const { seconds, duration } = data.value;
         if (typeof seconds === "number") currentTimeRef.current = seconds;
         if (typeof duration === "number") durationRef.current = duration;
-        
+
         if (onProgress && typeof seconds === "number" && typeof duration === "number") {
           onProgress(seconds, duration);
         }

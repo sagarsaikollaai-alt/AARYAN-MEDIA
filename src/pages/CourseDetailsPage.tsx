@@ -40,11 +40,11 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   const [openModuleIds, setOpenModuleIds] = useState<string[]>([String(initialModules[0]?.id)]);
   const [openFaqIndices, setOpenFaqIndices] = useState<number[]>([0]);
   const [showCommunityModal, setShowCommunityModal] = useState(false);
-  
+
   const [playbackData, setPlaybackData] = useState<{ videoId: string, token: string, expires: number } | null>(null);
   const [isFetchingVideo, setIsFetchingVideo] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
-  
+
   const { saveProgress, saveProgressImmediate, getProgress, getLastWatchedLesson } = useLessonProgress(user?.id, course.id);
   const [activeLessonId, setActiveLessonId] = useState<string | null>(initialModules[0]?.lessons[0]?.id || null);
   const [resumeSeconds, setResumeSeconds] = useState<number>(0);
@@ -103,7 +103,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
 
   const handlePlayLesson = async () => {
     if (!activeLessonId) return;
-    
+
     const selectedLesson = initialModules.flatMap((m) => m.lessons).find((l) => l.id === activeLessonId);
     if (!selectedLesson || selectedLesson.hasVideo === false) return;
 
@@ -112,7 +112,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const headers = session ? { Authorization: `Bearer ${session.access_token}` } : {};
-        
+
         const res = await fetch(`/api/lessons/${activeLessonId}/playback-token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...headers },
@@ -145,7 +145,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   const relatedCourses = allCourses.filter((c) => c.id !== course.id).slice(0, 3);
   const activeLesson = initialModules.flatMap(m => m.lessons).find(l => l.id === activeLessonId);
   const activeModule = initialModules.find(m => m.lessons.some(l => l.id === activeLessonId));
-  
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -179,7 +179,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   return (
     <div className="min-h-screen bg-[#050505] text-white pt-20 sm:pt-24 pb-12 selection:bg-[#D7FF2F] selection:text-black">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         <div className="mb-8">
           <button onClick={onBackToCourses} className="inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-zinc-400 hover:text-white transition-colors mb-6 group">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
@@ -196,12 +196,12 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 items-start mb-12">
-          
+
           <div className="lg:col-span-2 space-y-8">
             <div className="space-y-4">
               {/* 1. Video Player */}
               <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/[0.08] shadow-2xl">
-                
+
                 {uiState === 'locked' && (
                   <div className="relative w-full h-full flex flex-col items-center justify-center bg-zinc-900 overflow-hidden">
                     <img src={course.thumbnail} alt={course.title} className="absolute inset-0 w-full h-full object-cover opacity-50 pointer-events-none" />
@@ -287,8 +287,8 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                 )}
 
                 {uiState === 'poster' && (
-                  <button 
-                    onClick={() => handlePlayLesson()} 
+                  <button
+                    onClick={() => handlePlayLesson()}
                     className="relative w-full h-full flex items-center justify-center group bg-zinc-900"
                   >
                     <img src={course.thumbnail} alt={course.title} className="absolute inset-0 w-full h-full object-cover opacity-60 transition-opacity group-hover:opacity-80" />
@@ -318,16 +318,16 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                   </div>
                   {isPurchased && (
                     <div className="flex items-center gap-2">
-                      <button onClick={() => { 
-                        const idx = initialModules.flatMap(m=>m.lessons).findIndex(l => l.id === activeLessonId); 
-                        if (idx > 0) handleSelectLesson(initialModules.flatMap(m=>m.lessons)[idx - 1].id); 
+                      <button onClick={() => {
+                        const idx = initialModules.flatMap(m=>m.lessons).findIndex(l => l.id === activeLessonId);
+                        if (idx > 0) handleSelectLesson(initialModules.flatMap(m=>m.lessons)[idx - 1].id);
                       }} className="p-2 bg-[#1F1F1F] hover:bg-[#2a2a2a] rounded-lg transition-colors">
                         <ChevronLeft className="w-4 h-4 text-white" />
                       </button>
-                      <button onClick={() => { 
-                        const idx = initialModules.flatMap(m=>m.lessons).findIndex(l => l.id === activeLessonId); 
+                      <button onClick={() => {
+                        const idx = initialModules.flatMap(m=>m.lessons).findIndex(l => l.id === activeLessonId);
                         const lessons = initialModules.flatMap(m=>m.lessons);
-                        if (idx < lessons.length - 1) handleSelectLesson(lessons[idx + 1].id); 
+                        if (idx < lessons.length - 1) handleSelectLesson(lessons[idx + 1].id);
                       }} className="p-2 bg-[#1F1F1F] hover:bg-[#2a2a2a] rounded-lg transition-colors">
                         <ChevronRight className="w-4 h-4 text-white" />
                       </button>
@@ -367,10 +367,10 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                             <span className="text-[10px] text-zinc-500 font-mono bg-white/[0.04] px-2 py-0.5 rounded-full shrink-0">{res.size}</span>
                           </div>
                           <p className="text-xs text-zinc-500 mb-3">{res.description}</p>
-                          <a 
-                            href={res.downloadUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
+                          <a
+                            href={res.downloadUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="text-xs text-[#D7FF2F] font-bold flex items-center gap-1.5 hover:underline cursor-pointer"
                           >
                             <Download className="w-3 h-3" /> Download
@@ -426,7 +426,7 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
 
           <div className="lg:col-span-1">
             <div className="lg:sticky lg:top-24 space-y-6 max-h-[calc(100vh-6rem)] overflow-y-auto pb-4 no-scrollbar">
-              
+
               {!isPurchased && !isCourseComingSoon && (
                 <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 space-y-5 shadow-2xl">
                   <div>
