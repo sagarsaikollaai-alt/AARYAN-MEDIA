@@ -108,16 +108,25 @@ function formatCoursePublic(row, purchasedIds = new Set()) {
     bunnyStreamId: c.bunny_stream_id || null,
     title: c.title,
     description: c.description,
-    longDescription: c.long_description,
+    longDescription: c.long_description || '',
     thumbnail: c.thumbnail,
     category: c.category,
     lessonsCount: c.lessons_count || 0,
     duration: formatDurationFromSeconds(c.total_duration_seconds),
+    totalDurationSeconds: c.total_duration_seconds || 0,
+    modulesCount: c.modules_count || (c.modules || []).length,
     instructor: c.instructor,
+    language: c.language || 'English',
+    certificateIncluded: Boolean(c.certificate_included),
+    lifetimeAccess: Boolean(c.lifetime_access),
     price: c.price,
+    originalPrice: c.original_price ?? null,
+    currency: c.currency || 'INR',
     formattedPrice: formatPrice(c.price),
     purchased: purchasedIds.has(c.id),
     publishedDate: c.published_date,
+    createdAt: c.created_at || null,
+    updatedAt: c.updated_at || null,
     popularityScore: c.popularity_score || 0,
     previewVideoUrl: c.preview_video_url || null,
     whatYoullLearn: (c.learn_items || []).map((l) => typeof l === 'string' ? l : (l.item_text || null)),
@@ -129,7 +138,9 @@ function formatCoursePublic(row, purchasedIds = new Set()) {
         title: les.title,
         duration: les.duration || '',
         durationSeconds: les.duration_seconds || 0,
-        // SECURITY: videoId is intentionally removed from public API response
+        // SECURITY: never send the Bunny video_id to the browser.
+        // The browser only needs to know whether a video has been assigned.
+        hasVideo: Boolean(les.video_id),
         isFreePreview: les.is_free_preview || false,
       })),
     })),
@@ -151,7 +162,12 @@ function formatCoursePublic(row, purchasedIds = new Set()) {
     },
     faqs: (c.faqs || []).map((f) => ({ question: f.question, answer: f.answer })),
     community: c.community
-      ? { whatsapp: c.community.whatsapp || '', instagram: c.community.instagram || '' }
+      ? {
+          whatsapp: c.community.whatsapp || '',
+          instagram: c.community.instagram || '',
+          telegram: c.community.telegram || '',
+          discord: c.community.discord || '',
+        }
       : undefined,
     status: c.status,
   };
