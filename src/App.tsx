@@ -34,7 +34,7 @@ function AppContent() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [paymentCourse, setPaymentCourse] = useState<Course | null>(null);
@@ -42,13 +42,13 @@ function AppContent() {
 
   useEffect(() => {
     const init = async () => {
-    await fetchCourses();
+      await fetchCourses();
 
-    const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
 
-    if (session) {  
-      await handleUserData(session.user);
-   }
+      if (session) {
+        await handleUserData(session.user);
+      }
 
       setLoading(false);
     };
@@ -63,146 +63,146 @@ function AppContent() {
   }, []);
 
   const fetchCourses = async () => {
-  const { data: courseData, error: courseError } = await supabase
-    .from('courses')
-    .select('*')
-    .in('status', ['live', 'coming_soon'])
-    .order('created_at', { ascending: true });
-
-  if (courseError) {
-    console.error('Error fetching courses:', courseError);
-    setCourses([]);
-    return;
-  }
-
-  if (!courseData || courseData.length === 0) {
-    setCourses([]);
-    return;
-  }
-
-  const courseIds = courseData.map(course => course.id);
-
-  const [
-    { data: modules },
-    { data: lessons },
-    { data: learnItems },
-    { data: faqs },
-    { data: resources },
-    { data: communities }
-  ] = await Promise.all([
-    supabase
-      .from('modules')
+    const { data: courseData, error: courseError } = await supabase
+      .from('courses')
       .select('*')
-      .in('course_id', courseIds)
-      .order('sort_order', { ascending: true }),
+      .in('status', ['live', 'coming_soon'])
+      .order('created_at', { ascending: true });
 
-    supabase
-      .from('lessons')
-      .select('*')
-      .in('course_id', courseIds)
-      .order('sort_order', { ascending: true }),
+    if (courseError) {
+      console.error('Error fetching courses:', courseError);
+      setCourses([]);
+      return;
+    }
 
-    supabase
-      .from('course_learn_items')
-      .select('*')
-      .in('course_id', courseIds)
-      .order('sort_order', { ascending: true }),
+    if (!courseData || courseData.length === 0) {
+      setCourses([]);
+      return;
+    }
 
-    supabase
-      .from('course_faqs')
-      .select('*')
-      .in('course_id', courseIds)
-      .order('sort_order', { ascending: true }),
+    const courseIds = courseData.map(course => course.id);
 
-    supabase
-      .from('course_resources')
-      .select('*')
-      .in('course_id', courseIds)
-      .order('sort_order', { ascending: true }),
+    const [
+      { data: modules },
+      { data: lessons },
+      { data: learnItems },
+      { data: faqs },
+      { data: resources },
+      { data: communities }
+    ] = await Promise.all([
+      supabase
+        .from('modules')
+        .select('*')
+        .in('course_id', courseIds)
+        .order('sort_order', { ascending: true }),
 
-    supabase
-      .from('course_communities')
-      .select('*')
-      .in('course_id', courseIds)
-  ]);
+      supabase
+        .from('lessons')
+        .select('*')
+        .in('course_id', courseIds)
+        .order('sort_order', { ascending: true }),
 
-  const formattedCourses: Course[] = courseData.map(course => {
-    const courseModules = (modules || [])
-      .filter(module => module.course_id === course.id)
-      .map(module => ({
-        ...module,
-        lessons: (lessons || [])
-          .filter(lesson => lesson.module_id === module.id)
+      supabase
+        .from('course_learn_items')
+        .select('*')
+        .in('course_id', courseIds)
+        .order('sort_order', { ascending: true }),
+
+      supabase
+        .from('course_faqs')
+        .select('*')
+        .in('course_id', courseIds)
+        .order('sort_order', { ascending: true }),
+
+      supabase
+        .from('course_resources')
+        .select('*')
+        .in('course_id', courseIds)
+        .order('sort_order', { ascending: true }),
+
+      supabase
+        .from('course_communities')
+        .select('*')
+        .in('course_id', courseIds)
+    ]);
+
+    const formattedCourses: Course[] = courseData.map(course => {
+      const courseModules = (modules || [])
+        .filter(module => module.course_id === course.id)
+        .map(module => ({
+          ...module,
+          lessons: (lessons || [])
+            .filter(lesson => lesson.module_id === module.id)
+            .sort((a, b) => a.sort_order - b.sort_order)
+        }));
+
+      return {
+        ...course,
+
+        whatYoullLearn: (learnItems || [])
+          .filter(item => item.course_id === course.id)
           .sort((a, b) => a.sort_order - b.sort_order)
-      }));
+          .map(item => item.item_text),
 
-    return {
-      ...course,
+        modules: courseModules,
 
-      whatYoullLearn: (learnItems || [])
-        .filter(item => item.course_id === course.id)
-        .sort((a, b) => a.sort_order - b.sort_order)
-        .map(item => item.item_text),
+        faqs: (faqs || [])
+          .filter(faq => faq.course_id === course.id)
+          .sort((a, b) => a.sort_order - b.sort_order),
 
-      modules: courseModules,
+        resources: (resources || [])
+          .filter(resource => resource.course_id === course.id)
+          .sort((a, b) => a.sort_order - b.sort_order),
 
-      faqs: (faqs || [])
-        .filter(faq => faq.course_id === course.id)
-        .sort((a, b) => a.sort_order - b.sort_order),
+        community:
+          (communities || []).find(
+            community => community.course_id === course.id
+          ) || null,
 
-      resources: (resources || [])
-        .filter(resource => resource.course_id === course.id)
-        .sort((a, b) => a.sort_order - b.sort_order),
+        purchased: false
+      };
+    });
 
-      community:
-        (communities || []).find(
-          community => community.course_id === course.id
-        ) || null,
-
-      purchased: false
-    };
-  });
-
-  setCourses(formattedCourses);
-};
+    setCourses(formattedCourses);
+  };
 
   const handleUserData = async (authUser: User) => {
-  setSupabaseUser(authUser);
+    setSupabaseUser(authUser);
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('name, avatar')
-    .eq('id', authUser.id)
-    .single();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('name, avatar')
+      .eq('id', authUser.id)
+      .single();
 
-  const { data: enrollments, error: enrollmentError } = await supabase
-    .from('enrollments')
-    .select('course_id')
-    .eq('user_id', authUser.id)
-    .eq('status', 'active');
+    const { data: purchases, error: purchaseError } = await supabase
+      .from('purchases')
+      .select('course_id')
+      .eq('user_id', authUser.id)
+      .eq('payment_status', 'success');
 
-  if (enrollmentError) {
-    console.error('Error fetching enrollments:', enrollmentError);
-  }
+    if (purchaseError) {
+      console.error('Error fetching purchases:', purchaseError);
+    }
 
-  const purchasedIds = (enrollments || []).map(
-    enrollment => enrollment.course_id
-  );
+    const purchasedIds = (purchases || []).map(
+      purchase => purchase.course_id
+    );
 
-  setUser({
-    id: authUser.id,
-    email: authUser.email || '',
-    name:
-      profile?.name ||
-      authUser.user_metadata?.name ||
-      'Creator',
-    avatar:
-      profile?.avatar ||
-      authUser.user_metadata?.name?.[0]?.toUpperCase() ||
-      'A',
-    purchasedCourseIds: purchasedIds
-  });
-};
+    setUser({
+      id: authUser.id,
+      email: authUser.email || '',
+      name:
+        profile?.name ||
+        authUser.user_metadata?.name ||
+        'Creator',
+      avatar:
+        profile?.avatar ||
+        authUser.user_metadata?.name?.[0]?.toUpperCase() ||
+        'A',
+      purchasedCourseIds: purchasedIds
+    });
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -266,18 +266,18 @@ function AppContent() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredCourses.map(course => (
-                <CourseCard 
-                  key={course.id} 
-                  course={course} 
-                  onCardClick={(c) => navigate(`/courses/${c.slug}`)} 
+                <CourseCard
+                  key={course.id}
+                  course={course}
+                  onCardClick={(c) => navigate(`/courses/${c.slug}`)}
                   onCtaClick={(e, c) => {
-                    e.stopPropagation(); 
+                    e.stopPropagation();
                     if (c.purchased) {
-                      navigate(`/learn/${c.slug}`); 
+                      navigate(`/learn/${c.slug}`);
                     } else {
-                      handleBuyCourse(c); 
+                      handleBuyCourse(c);
                     }
-                  }} 
+                  }}
                 />
               ))}
             </div>
