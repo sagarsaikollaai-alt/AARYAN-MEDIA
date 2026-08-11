@@ -150,9 +150,14 @@ function formatCoursePublic(row, purchasedIds = new Set()) {
       access: c.lifetime_access ? 'Lifetime Access' : 'Limited Access',
     },
     faqs: (c.faqs || []).map((f) => ({ question: f.question, answer: f.answer })),
-    community: c.community
-      ? { whatsapp: c.community.whatsapp || '', instagram: c.community.instagram || '' }
-      : undefined,
+    community: (() => {
+      const community = Array.isArray(c.community) ? c.community[0] : c.community;
+      if (!community) return undefined;
+      return {
+        whatsapp: community.whatsapp || '',
+        instagram: community.instagram || '',
+      };
+    })(),
     status: c.status,
   };
 }
@@ -365,7 +370,6 @@ app.get('/api/courses', async (req, res) => {
       `)
       .in('status', ['live', 'coming_soon'])
       .order('popularity_score', { ascending: false });
-
     if (error) { console.error('[GET /api/courses]', error); return res.status(500).json({ error: 'Failed to fetch courses' }); }
 
     const courseIds = (courses || []).map((c) => c.id);
@@ -389,7 +393,10 @@ app.get('/api/courses', async (req, res) => {
     });
     return res.json(formatted);
   } catch (err) {
-    console.error('[GET /api/courses]', err);
+    console.error('[GET /api/courses] error:', err);
+    if (process.env.NODE_ENV !== 'production') {
+      return res.status(500).json({ error: 'Failed to fetch courses', details: err && err.message ? err.message : String(err) });
+    }
     return res.status(500).json({ error: 'Failed to fetch courses' });
   }
 });

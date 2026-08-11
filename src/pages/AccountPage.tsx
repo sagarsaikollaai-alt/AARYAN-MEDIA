@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
-import { INITIAL_COURSES } from '../data/courses';
 import { ArrowLeft, User as UserIcon, Mail, Phone, Shield, CreditCard, Key, CheckCircle, Calendar, Link2, X, Loader2, ShieldCheck, Send } from 'lucide-react';
 
 interface AccountPageProps {
@@ -96,8 +95,24 @@ export function AccountPage({ user, supabaseUser, onBack, showToast }: AccountPa
     setPurchases((data as PurchaseRecord[]) || []);
   };
 
+  const [coursesMap, setCoursesMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const res = await fetch('/api/courses');
+        if (!res.ok) return;
+        const data = await res.json();
+        const map: Record<string, string> = {};
+        (data || []).forEach((c: any) => { if (c && c.id) map[c.id] = c.title || c.slug || String(c.id); });
+        setCoursesMap(map);
+      } catch (e) { /* ignore */ }
+    };
+    fetchCourses();
+  }, []);
+
   const getCourseTitle = (courseId: string) => {
-    return INITIAL_COURSES.find((c) => c.id === courseId)?.title || courseId;
+    return coursesMap[courseId] || courseId;
   };
 
   const handleSaveProfile = async () => {
