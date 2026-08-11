@@ -12,7 +12,7 @@ export interface Course {
   lessonsCount: number;
   duration: string;
   bunnyStreamId?: string; 
-  status: 'published' | 'coming_soon';
+  status: 'live' | 'coming_soon';
   whatYoullLearn: string[];
   longDescription: string;
   specs: { language: string; lastUpdated: string; certificate: string; access: string };
@@ -260,7 +260,7 @@ export const INITIAL_COURSES: Course[] = [
     lessonsCount: 21,
     duration: "4h 15m",
     bunnyStreamId: "active",
-    status: "published",
+    status: "live",
     community: { whatsapp: "https://chat.whatsapp.com/EtUyGEBa8a9IZzLdTlSnvC", instagram: "https://www.instagram.com/channel/AbbqWBgmMdVSOi-g/" },
     longDescription: "This course is designed to help beginners become confident video editors by covering everything from project setup to exporting high-quality videos.",
     whatYoullLearn: [
@@ -324,7 +324,7 @@ export const INITIAL_COURSES: Course[] = [
     lessonsCount: 76,
     duration: "12h 40m",
     bunnyStreamId: "active",
-    status: "published",
+    status: "live",
     community: { whatsapp: "https://chat.whatsapp.com/EtUyGEBa8a9IZzLdTlSnvC", instagram: "https://www.instagram.com/channel/AbbqWBgmMdVSOi-g/" },
     longDescription: "You'll learn proven strategies for finding high-quality clients, reaching out through different platforms, writing effective client messages, conducting professional conversations, negotiating confidently, and closing premium projects.",
     whatYoullLearn: [
