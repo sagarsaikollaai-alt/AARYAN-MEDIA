@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useCourseData, Course as DbCourse, Module, Lesson } from "../hooks/useCourseData";
 import { useLessonProgress } from "../hooks/useLessonProgress";
 import { CommunityWelcomeModal } from "../components/CommunityWelcomeModal";
+import { courseAdditionalContent } from "../courseAdditionalContent";
 import {
   PlayCircle,
   Clock,
@@ -22,6 +23,7 @@ import {
   ArrowLeft,
   AlertCircle,
   Users,
+  Download
 } from "lucide-react";
 
 interface CourseDetailsPageProps {
@@ -85,6 +87,9 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   const isPurchased =
     isPurchasedProp ??
     Boolean(user?.purchasedCourseIds?.includes(course?.id));
+    
+    const additionalContent =
+     courseAdditionalContent[course?.id];
 
   const {
     saveProgress,
@@ -620,13 +625,28 @@ const headers = {
 
             {/* COMMUNITY */}
             {isPurchased && (
-              <button
-                onClick={() => setShowCommunityModal(true)}
-                className="flex items-center gap-2 bg-[#111111] border border-white/[0.08] hover:border-[#D7FF2F] px-4 py-3 rounded-xl text-sm"
-              >
-                <Users className="w-4 h-4 text-[#D7FF2F]" />
-                Join Community
-              </button>
+              <div className="flex items-center justify-between w-full gap-4">
+    <button
+      onClick={() => setShowCommunityModal(true)}
+      className="flex items-center gap-2 bg-[#111111] border border-white/[0.08] hover:border-[#D7FF2F] px-4 py-3 rounded-xl text-sm"
+    >
+      <Users className="w-4 h-4 text-[#D7FF2F]" />
+      Join Community
+    </button>
+
+    <button
+      onClick={() =>
+        window.open(
+          "https://drive.google.com/drive/folders/1tcFPMUDGMP47cXseZsBqUuVnmaRhKmEn",
+          "_blank"
+        )
+      }
+      className="flex items-center gap-2 bg-[#111111] border border-white/[0.08] hover:border-[#D7FF2F] px-4 py-3 rounded-xl text-sm"
+    >
+        <Download className="w-4 h-4 text-[#D7FF2F]" />
+      Downloadable Assets
+    </button>
+  </div>
             )}
 
             {/* DESCRIPTION */}
@@ -636,7 +656,7 @@ const headers = {
               </h2>
 
               <p className="text-zinc-300 text-sm leading-relaxed">
-                {course.long_description}
+                  {additionalContent?.about}
               </p>
             </div>
 
@@ -698,6 +718,57 @@ const headers = {
 
               </div>
             </div>
+            {additionalContent?.faqs && additionalContent.faqs.length > 0 && (
+  <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
+    <h2 className="text-lg sm:text-xl font-bold text-white mb-5">
+      Frequently Asked Questions
+    </h2>
+
+    <div className="space-y-3">
+      {additionalContent.faqs.map((faq, index) => {
+        const isOpen = openFaqIndices.includes(index);
+
+        return (
+          <div
+            key={`${course.id}-faq-${index}`}
+            className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/30"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setOpenFaqIndices((prev) =>
+                  prev.includes(index)
+                    ? prev.filter((i) => i !== index)
+                    : [...prev, index]
+                );
+              }}
+              className="w-full text-left p-4 flex items-center justify-between text-sm sm:text-base font-semibold text-white hover:bg-white/[0.02] transition-colors"
+            >
+              <span className="pr-4">
+                {faq.question}
+              </span>
+
+              {isOpen ? (
+                <ChevronUp className="w-4 h-4 shrink-0 text-zinc-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 shrink-0 text-zinc-400" />
+              )}
+            </button>
+
+            {isOpen && (
+              <div className="px-4 pb-4">
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  {faq.answer}
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </div>
+)}
+
           </div>
 
           {/* RIGHT */}
@@ -892,6 +963,9 @@ const headers = {
             </div>
           </div>
         </div>
+
+<br></br>        
+{/* FAQ SECTION */}
 
         {/* RELATED COURSES */}
         {relatedCourses.length > 0 && (
