@@ -65,11 +65,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
           <div className="flex items-center gap-3 text-[11px] text-zinc-400 border-t border-white/[0.06] pt-2 mb-3">
             <div className="flex items-center gap-1.5">
               <BookOpen className="w-3.5 h-3.5 text-zinc-500" />
-              <span>{course.lessonsCount || 0} Lessons</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-zinc-500" />
-              <span>{course.duration}</span>
+              <span>{course.lessons_count || 0} Lessons</span>
             </div>
           </div>
 
